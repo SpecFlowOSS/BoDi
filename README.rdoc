@@ -1,0 +1,10 @@
+= MiniDi
+
+A very simple IoC container, easily embeddable also as a source code.
+
+Was created to support SpecFlow: http://www.specflow.org
+
+== Copyright
+
+Copyright (c) TechTalk. See LICENSE for details.
+
