@@ -15,6 +15,7 @@
  * 
  */
 using System;
+using System.Configuration;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -93,28 +94,37 @@ namespace MiniDi
             RegisterInstanceAs<IObjectContainer>(this);
         }
 
+        #region Registration
+
         public void RegisterTypeAs<TType, TInterface>() where TType : class, TInterface
         {
-            AssertNotResolved<TInterface>();
+            Type interfaceType = typeof(TInterface);
+            Type implementationType = typeof(TType);
+            RegisterTypeAs(implementationType, interfaceType);
+        }
 
-            ClearRegistrations(typeof(TInterface));
-            typeRegistrations[typeof(TInterface)] = typeof(TType);
+        private void RegisterTypeAs(Type implementationType, Type interfaceType)
+        {
+            AssertNotResolved(interfaceType);
+
+            ClearRegistrations(interfaceType);
+            typeRegistrations[interfaceType] = implementationType;
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance) where TInterface : class
         {
             if (instance == null)
                 throw new ArgumentNullException("instance");
-            AssertNotResolved<TInterface>();
+            AssertNotResolved(typeof(TInterface));
 
             ClearRegistrations(typeof(TInterface));
             instanceRegistrations[typeof(TInterface)] = instance;
             objectPool[instance.GetType()] = instance;
         }
 
-        private void AssertNotResolved<TInterface>()
+        private void AssertNotResolved(Type interfaceType)
         {
-            if (resolvedObjects.ContainsKey(typeof(TInterface)))
+            if (resolvedObjects.ContainsKey(interfaceType))
                 throw new ObjectContainerException("An object have been resolved for this interface already.");
         }
 
@@ -123,6 +133,38 @@ namespace MiniDi
             typeRegistrations.Remove(interfaceType);
             instanceRegistrations.Remove(interfaceType);
         }
+
+        public void RegisterFromConfiguration()
+        {
+            var section = (ConfigurationSectionHandler)ConfigurationManager.GetSection("miniDi");
+            if (section == null)
+                return;
+
+            RegisterFromConfiguration(section.Registrations);
+        }
+
+        public void RegisterFromConfiguration(ContainerRegistrationCollection containerRegistrationCollection)
+        {
+            if (containerRegistrationCollection == null)
+                return;
+
+            foreach (ContainerRegistrationConfigElement registrationConfigElement in containerRegistrationCollection)
+            {
+                RegisterFromConfiguration(registrationConfigElement);
+            }
+        }
+
+        private void RegisterFromConfiguration(ContainerRegistrationConfigElement registrationConfigElement)
+        {
+            Type interfaceType = Type.GetType(registrationConfigElement.Interface, true);
+            Type implementationType = Type.GetType(registrationConfigElement.Implementation, true);
+
+            RegisterTypeAs(implementationType, interfaceType);
+        }
+
+        #endregion
+
+        #region Resolve
 
         public T Resolve<T>()
         {
@@ -198,5 +240,52 @@ namespace MiniDi
         {
             return parameters.Select(p => Resolve(p.ParameterType)).ToArray();
         }
+
+        #endregion
     }
+
+    #region Configuration handling
+
+    public class ConfigurationSectionHandler : ConfigurationSection
+    {
+        [ConfigurationProperty("", Options = ConfigurationPropertyOptions.IsDefaultCollection)]
+        [ConfigurationCollection(typeof(ContainerRegistrationCollection), AddItemName = "register")]
+        public ContainerRegistrationCollection Registrations
+        {
+            get { return (ContainerRegistrationCollection)this[""]; }
+            set { this[""] = value; }
+        }
+    }
+
+    public class ContainerRegistrationCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new ContainerRegistrationConfigElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((ContainerRegistrationConfigElement)element).Interface;
+        }
+    }
+
+    public class ContainerRegistrationConfigElement : ConfigurationElement
+    {
+        [ConfigurationProperty("as", IsRequired = true)]
+        public string Interface
+        {
+            get { return (string)this["as"]; }
+            set { this["as"] = value; }
+        }
+
+        [ConfigurationProperty("type", IsRequired = true)]
+        public string Implementation
+        {
+            get { return (string)this["type"]; }
+            set { this["type"] = value; }
+        }
+    }
+
+    #endregion
 }
