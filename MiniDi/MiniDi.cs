@@ -2,7 +2,10 @@
  * 
  * MiniDi: A very simple IoC container, easily embeddable also as a source code. 
  * 
- * MiniDi was created to support SpecFlow (http://www.specflow.org) by Gaspar Nagy
+ * MiniDi was created to support SpecFlow (http://www.specflow.org) by Gaspar Nagy (http://gasparnagy.blogspot.com/)
+ * 
+ * Project source & unit tests: http://github.com/gasparnagy/MiniDi
+ * License: Simplified BSD License
  * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED 
  * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
@@ -10,7 +13,7 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
  * DEALINGS IN THE SOFTWARE.
  * 
-*/
+ */
 using System;
 using System.Linq;
 using System.Collections.Generic;
