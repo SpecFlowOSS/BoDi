@@ -6,110 +6,6 @@ using NUnit.Framework;
 
 namespace MiniDi.Tests
 {
-    public interface IInterface1
-    {
-        
-    }
-
-    public interface IInterface2
-    {
-        
-    }
-
-    public interface IInterface3
-    {
-        
-    }
-
-    public interface IInterface4
-    {
-        
-    }
-
-    /// <summary>
-    /// A very simple class without dependencies and ctor
-    /// </summary>
-    public class VerySimpleClass : IInterface1
-    {
-    }
-
-    /// <summary>
-    /// Another very simple class without dependencies and ctor
-    /// </summary>
-    public class AnotherVerySimpleClass : IInterface2
-    {
-    }
-
-    /// <summary>
-    /// A simple class without dependencies and but a default constructor
-    /// </summary>
-    public class SimpleClassWithDefaultCtor : IInterface1
-    {
-        public readonly string Status = "";
-
-        public SimpleClassWithDefaultCtor()
-        {
-            Status = "Initialized";
-        }
-    }
-
-    /// <summary>
-    /// A clsss with a dependency that does not have further dependencies
-    /// </summary>
-    public class ClassWithSimpleDependency : IInterface3
-    {
-        public readonly IInterface1 Dependency;
-
-        public ClassWithSimpleDependency(IInterface1 dependency)
-        {
-            Dependency = dependency;
-        }
-    }
-
-    /// <summary>
-    /// A clsss with a dependencies that does not have further dependencies
-    /// </summary>
-    public class ClassWithSimpleDependencies : IInterface3
-    {
-        public readonly IInterface1 Dependency1;
-        public readonly IInterface2 Dependency2;
-
-        public ClassWithSimpleDependencies(IInterface1 dependency1, IInterface2 dependency2)
-        {
-            Dependency1 = dependency1;
-            Dependency2 = dependency2;
-        }
-    }
-
-    /// <summary>
-    /// A clsss with a dependency that has further dependencies
-    /// </summary>
-    public class ClassWithDeeperDependency : IInterface4
-    {
-        public readonly IInterface3 Dependency;
-
-        public ClassWithDeeperDependency(IInterface3 dependency)
-        {
-            Dependency = dependency;
-        }
-    }
-
-    /// <summary>
-    /// A clsss with a dependency that has further dependencies and another dependency that was also required by the first
-    /// </summary>
-    public class ClassWithDeeperRedundantDependencies : IInterface4
-    {
-        public readonly IInterface3 Dependency1;
-        public readonly IInterface1 Dependency2;
-
-        public ClassWithDeeperRedundantDependencies(IInterface3 dependency1, IInterface1 dependency2)
-        {
-            Dependency2 = dependency2;
-            Dependency1 = dependency1;
-        }
-    }
-
-
     [TestFixture]
     public class ResolveTests
     {
@@ -301,6 +197,74 @@ namespace MiniDi.Tests
             Assert.AreSame(dependency2, ((ClassWithDeeperRedundantDependencies)obj).Dependency1);
             Assert.AreSame(dependency1, ((ClassWithDeeperRedundantDependencies)obj).Dependency2);
             Assert.AreSame(dependency1, ((ClassWithSimpleDependency)((ClassWithDeeperRedundantDependencies)obj).Dependency1).Dependency);
+        }
+
+        [Test]
+        public void ShouldResolveSameInstanceWhenTypeIsRegisteredAsTwoInterface()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<ClassWithTwoInterface, IInterface1>();
+            container.RegisterTypeAs<ClassWithTwoInterface, IInterface2>();
+
+            // when
+
+            var obj1 = container.Resolve<IInterface1>();
+            var obj2 = container.Resolve<IInterface2>();
+
+            // then
+
+            Assert.AreSame(obj1, obj2);
+        }
+
+        [Test]
+        public void ShouldResolveRegisteredInstanceIfItsTypeIsAlsoRegistered()
+        {
+            // given
+            var obj1 = new ClassWithTwoInterface();
+            var container = new ObjectContainer();
+            container.RegisterInstanceAs<IInterface1>(obj1);
+            container.RegisterTypeAs<ClassWithTwoInterface, IInterface2>();
+
+            // when
+
+            var obj2 = container.Resolve<IInterface2>();
+
+            // then
+
+            Assert.AreSame(obj1, obj2);
+        }
+
+        [Test]
+        public void ShouldResolveTheContainerItself()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            var obj = container.Resolve<ObjectContainer>();
+
+            // then
+            Assert.IsNotNull(obj);
+            Assert.AreSame(container, obj);
+        }
+
+        [Test]
+        public void ShouldResolveTheContainerItselfAsInterface()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            var obj = container.Resolve<IObjectContainer>();
+
+            // then
+            Assert.IsNotNull(obj);
+            Assert.AreSame(container, obj);
         }
 
     }

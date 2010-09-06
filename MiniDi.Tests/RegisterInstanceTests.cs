@@ -1,10 +1,25 @@
-﻿using NUnit.Framework;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using NUnit.Framework;
 
 namespace MiniDi.Tests
 {
     [TestFixture]
-    public class RegisterTypeTests
+    public class RegisterInstanceTests
     {
+        [Test, ExpectedException(typeof(ArgumentNullException))]
+        public void ShouldThrowArgumentExceptionWhenCalledWithNull()
+        {
+            // given
+            var container = new ObjectContainer();
+
+            // when
+
+            container.RegisterInstanceAs((IInterface1)null);
+        }
+
         [Test]
         public void ShouldAllowOverrideRegistrationBeforeResolve()
         {
@@ -12,10 +27,11 @@ namespace MiniDi.Tests
 
             var container = new ObjectContainer();
             container.RegisterTypeAs<VerySimpleClass, IInterface1>();
+            var instance = new SimpleClassWithDefaultCtor();
 
             // when 
 
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            container.RegisterInstanceAs<IInterface1>(instance);
 
             // then
 
@@ -31,10 +47,11 @@ namespace MiniDi.Tests
 
             var container = new ObjectContainer();
             container.RegisterInstanceAs<IInterface1>(new VerySimpleClass());
+            var instance = new SimpleClassWithDefaultCtor();
 
             // when 
 
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            container.RegisterInstanceAs<IInterface1>(instance);
 
             // then
 
@@ -51,10 +68,11 @@ namespace MiniDi.Tests
             var container = new ObjectContainer();
             container.RegisterTypeAs<VerySimpleClass, IInterface1>();
             container.Resolve<IInterface1>();
+            var instance = new SimpleClassWithDefaultCtor();
 
             // when 
 
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            container.RegisterInstanceAs<IInterface1>(instance);
         }
 
         [Test, ExpectedException(typeof(ObjectContainerException))]
@@ -65,10 +83,11 @@ namespace MiniDi.Tests
             var container = new ObjectContainer();
             container.RegisterInstanceAs<IInterface1>(new VerySimpleClass());
             container.Resolve<IInterface1>();
+            var instance = new SimpleClassWithDefaultCtor();
 
             // when 
 
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            container.RegisterInstanceAs<IInterface1>(instance);
         }
     }
 }

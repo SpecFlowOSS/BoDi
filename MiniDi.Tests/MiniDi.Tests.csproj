@@ -47,6 +47,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="RegisterInstanceTests.cs" />
+    <Compile Include="TestClasses.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegisterTypeTests.cs" />
     <Compile Include="ResolveTests.cs" />
