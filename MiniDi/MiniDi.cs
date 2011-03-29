@@ -84,6 +84,7 @@ namespace MiniDi
 
     public class ObjectContainer : IObjectContainer
     {
+        private readonly ObjectContainer baseContainer;
         private readonly Dictionary<Type, Type> typeRegistrations = new Dictionary<Type, Type>();
         private readonly Dictionary<Type, object> instanceRegistrations = new Dictionary<Type, object>();
         private readonly Dictionary<Type, object> resolvedObjects = new Dictionary<Type, object>();
@@ -92,6 +93,11 @@ namespace MiniDi
         public ObjectContainer()
         {
             RegisterInstanceAs<IObjectContainer>(this);
+        }
+
+        public ObjectContainer(ObjectContainer baseContainer) : this()
+        {
+            this.baseContainer = baseContainer;
         }
 
         #region Registration
@@ -187,25 +193,79 @@ namespace MiniDi
             return resolvedObject;
         }
 
-        private object CreateObjectFor(Type typeToResolve)
+        private class RegistrationResult
+        {
+            public readonly object RegisteredInstance;
+            public readonly Type RegisteredType;
+
+            public bool IsTypeRegistration { get { return RegisteredType != null; } }
+            public bool IsInstanceRegistration { get { return !IsTypeRegistration; } }
+
+            public RegistrationResult(object registeredInstance)
+            {
+                RegisteredInstance = registeredInstance;
+                RegisteredType = null;
+            }
+
+            public RegistrationResult(Type registeredType)
+            {
+                RegisteredType = registeredType;
+                RegisteredInstance = null;
+            }
+        }
+
+        private RegistrationResult GetRegistrationResult(Type typeToResolve)
         {
             object obj;
             if (instanceRegistrations.TryGetValue(typeToResolve, out obj))
             {
-                return obj;
+                return new RegistrationResult(obj);
             }
 
             Type registeredType;
-            if (!typeRegistrations.TryGetValue(typeToResolve, out registeredType))
+            if (typeRegistrations.TryGetValue(typeToResolve, out registeredType))
             {
-                if (typeToResolve.IsInterface)
-                    throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName);
-
-                registeredType = typeToResolve;
+                return new RegistrationResult(registeredType);
             }
 
-            if (!objectPool.TryGetValue(registeredType, out obj))
+            if (baseContainer != null)
+                return baseContainer.GetRegistrationResult(typeToResolve);
+
+            return null;
+        }
+
+        private object GetPooledObject(Type registeredType)
+        {
+            object obj;
+            if (objectPool.TryGetValue(registeredType, out obj))
+                return obj;
+
+            if (baseContainer != null)
+                return baseContainer.GetPooledObject(registeredType);
+
+            return null;
+        }
+
+        private object CreateObjectFor(Type typeToResolve)
+        {
+            var registrationResult = GetRegistrationResult(typeToResolve);
+
+            if (registrationResult != null && registrationResult.IsInstanceRegistration)
             {
+                return registrationResult.RegisteredInstance;
+            }
+
+            Type registeredType = typeToResolve;
+            if (registrationResult != null)
+                registeredType = registrationResult.RegisteredType;
+
+            object obj = GetPooledObject(registeredType);
+
+            if (obj == null)
+            {
+                if (registeredType.IsInterface)
+                    throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName);
+
                 obj = CreateObject(registeredType);
                 objectPool.Add(registeredType, obj);
             }

@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="RegisterFromConfigTests.cs" />
     <Compile Include="RegisterInstanceTests.cs" />
+    <Compile Include="SubContainerTests.cs" />
     <Compile Include="TestClasses.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegisterTypeTests.cs" />
