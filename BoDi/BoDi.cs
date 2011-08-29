@@ -15,6 +15,7 @@
  * 
  */
 using System;
+using System.Collections;
 using System.Configuration;
 using System.Linq;
 using System.Collections.Generic;
@@ -55,13 +56,15 @@ namespace BoDi
         /// <summary>
         /// Registeres a type as the desired implementation type of an interface.
         /// </summary>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <typeparam name="TType">Implementation type</typeparam>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         /// </remarks>
-        void RegisterTypeAs<TType, TInterface>() where TType : class, TInterface;
+        void RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
+
         /// <summary>
         /// Registers an instance 
         /// </summary>
@@ -96,17 +99,18 @@ namespace BoDi
         /// <remarks>
         ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
         /// </remarks>
-        T Resolve<T>();
+        T Resolve<T>(string name = null);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
         /// </summary>
         /// <param name="typeToResolve">The interface or type.</param>
+        /// <param name="name">A name to resolve named instance, otherwise null.</param>
         /// <returns>An object implementing <paramref name="typeToResolve"/>.</returns>
         /// <remarks>
         ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
         /// </remarks>
-        object Resolve(Type typeToResolve);
+        object Resolve(Type typeToResolve, string name = null);
     }
 
     public interface IContainedInstance
@@ -118,8 +122,8 @@ namespace BoDi
     {
         private struct RegistrationKey
         {
-            readonly Type Type;
-            readonly string Name;
+            public readonly Type Type;
+            public readonly string Name;
 
             public RegistrationKey(Type type, string name)
             {
@@ -151,7 +155,7 @@ namespace BoDi
         }
         private interface IRegistration
         {
-            
+            object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath);
         }
 
         private class TypeRegistration : IRegistration
@@ -161,6 +165,22 @@ namespace BoDi
             public TypeRegistration(Type implementationType)
             {
                 ImplementationType = implementationType;
+            }
+
+            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            {
+                object obj = container.GetPooledObject(ImplementationType);
+
+                if (obj == null)
+                {
+                    if (ImplementationType.IsInterface)
+                        throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName, resolutionPath);
+
+                    obj = container.CreateObject(ImplementationType, resolutionPath);
+                    container.objectPool.Add(ImplementationType, obj);
+                }
+
+                return obj;
             }
         }
 
@@ -172,12 +192,50 @@ namespace BoDi
             {
                 Instance = instance;
             }
+
+            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            {
+                return Instance;
+            }
+        }
+
+        private class NamedInstanceDictionaryRegistration : IRegistration
+        {
+            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            {
+                Debug.Assert(typeToResolve.IsGenericType && typeToResolve.GetGenericTypeDefinition() == typeof(IDictionary<,>));
+
+                var genericArguments = typeToResolve.GetGenericArguments();
+                var keyType = genericArguments[0];
+                var targetType = genericArguments[1];
+                var result = (IDictionary)Activator.CreateInstance(typeof (Dictionary<,>).MakeGenericType(genericArguments));
+
+                foreach (var namedRegistration in container.registrations.Where(r => r.Key.Name != null && r.Key.Type == targetType).Select(r => r.Key))
+                {
+                    var convertedKey = ChangeType(namedRegistration.Name, keyType);
+                    Debug.Assert(convertedKey != null);
+                    result.Add(convertedKey, container.Resolve(namedRegistration.Type, namedRegistration.Name));
+                }
+
+                return result;
+            }
+
+            private object ChangeType(string name, Type keyType)
+            {
+                if (keyType == typeof(string))
+                    return name;
+
+                if (keyType.IsEnum)
+                    return Enum.Parse(keyType, name, true);
+
+                return Convert.ChangeType(name, keyType);
+            }
         }
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
-        private readonly Dictionary<Type, object> resolvedObjects = new Dictionary<Type, object>();
+        private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<Type, object> objectPool = new Dictionary<Type, object>();
 
         public ObjectContainer()
@@ -195,38 +253,57 @@ namespace BoDi
 
         #region Registration
 
-        public void RegisterTypeAs<TInterface>(Type implementationType) where TInterface : class
+        public void RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
         {
             Type interfaceType = typeof(TInterface);
-            RegisterTypeAs(implementationType, interfaceType);
+            RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        public void RegisterTypeAs<TType, TInterface>() where TType : class, TInterface
+        public void RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
         {
             Type interfaceType = typeof(TInterface);
             Type implementationType = typeof(TType);
-            RegisterTypeAs(implementationType, interfaceType);
+            RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        private void RegisterTypeAs(Type implementationType, Type interfaceType)
+        private RegistrationKey CreateNamedInstanceDictionaryKey(Type targetType)
         {
-            AssertNotResolved(interfaceType);
+            return new RegistrationKey(typeof(IDictionary<,>).MakeGenericType(typeof(string), targetType), null);
+        }
 
-            ClearRegistrations(interfaceType);
+        private void AddRegistration(RegistrationKey key, IRegistration registration)
+        {
+            registrations[key] = registration;
 
-            var key = new RegistrationKey(interfaceType, null);
-            registrations[key] = new TypeRegistration(implementationType);
+            if (key.Name != null)
+            {
+                var dictKey = CreateNamedInstanceDictionaryKey(key.Type);
+                if (!registrations.ContainsKey(dictKey))
+                {
+                    registrations[dictKey] = new NamedInstanceDictionaryRegistration();
+                }
+            }
+        }
+
+        private void RegisterTypeAs(Type implementationType, Type interfaceType, string name)
+        {
+            var registrationKey = new RegistrationKey(interfaceType, name);
+            AssertNotResolved(registrationKey);
+
+            ClearRegistrations(registrationKey);
+
+            AddRegistration(registrationKey, new TypeRegistration(implementationType));
         }
 
         public void RegisterInstanceAs(object instance, Type interfaceType)
         {
             if (instance == null)
                 throw new ArgumentNullException("instance");
-            AssertNotResolved(interfaceType);
+            var registrationKey = new RegistrationKey(interfaceType, null); //TODO
+            AssertNotResolved(registrationKey);
 
-            ClearRegistrations(interfaceType);
-            var key = new RegistrationKey(interfaceType, null);
-            registrations[key] = new InstanceRegistration(instance);
+            ClearRegistrations(registrationKey);
+            AddRegistration(registrationKey, new InstanceRegistration(instance));
             objectPool[instance.GetType()] = instance;
         }
 
@@ -235,15 +312,15 @@ namespace BoDi
             RegisterInstanceAs(instance, typeof(TInterface));
         }
 
-        private void AssertNotResolved(Type interfaceType)
+        private void AssertNotResolved(RegistrationKey interfaceType)
         {
             if (resolvedObjects.ContainsKey(interfaceType))
                 throw new ObjectContainerException("An object have been resolved for this interface already.", null);
         }
 
-        private void ClearRegistrations(Type interfaceType)
+        private void ClearRegistrations(RegistrationKey registrationKey)
         {
-            registrations.Remove(new RegistrationKey(interfaceType, null)); //TODO
+            registrations.Remove(registrationKey);
         }
 
 #if !BODI_LIMITEDRUNTIME
@@ -272,7 +349,7 @@ namespace BoDi
             Type interfaceType = Type.GetType(registrationConfigElement.Interface, true);
             Type implementationType = Type.GetType(registrationConfigElement.Implementation, true);
 
-            RegisterTypeAs(implementationType, interfaceType);
+            RegisterTypeAs(implementationType, interfaceType, null); //TODO
         }
 #endif
 
@@ -280,66 +357,64 @@ namespace BoDi
 
         #region Resolve
 
-        public T Resolve<T>()
+        public T Resolve<T>(string name = null)
         {
             Type typeToResolve = typeof(T);
 
-            object resolvedObject = Resolve(typeToResolve);
+            object resolvedObject = Resolve(typeToResolve, name);
 
             return (T)resolvedObject;
         }
 
-        public object Resolve(Type typeToResolve)
+        public object Resolve(Type typeToResolve, string name = null)
         {
-            return Resolve(typeToResolve, Enumerable.Empty<Type>());
+            return Resolve(typeToResolve, Enumerable.Empty<Type>(), name);
         }
 
-        private object Resolve(Type typeToResolve, IEnumerable<Type> resolutionPath)
+        private object Resolve(Type typeToResolve, IEnumerable<Type> resolutionPath, string name)
         {
             AssertNotDisposed();
 
+            var keyToResolve = new RegistrationKey(typeToResolve, name);
             object resolvedObject;
-            if (!resolvedObjects.TryGetValue(typeToResolve, out resolvedObject))
+            if (!resolvedObjects.TryGetValue(keyToResolve, out resolvedObject))
             {
-                resolvedObject = CreateObjectFor(typeToResolve, resolutionPath);
-                resolvedObjects.Add(typeToResolve, resolvedObject);
+                resolvedObject = CreateObjectFor(keyToResolve, resolutionPath);
+                resolvedObjects.Add(keyToResolve, resolvedObject);
             }
             Debug.Assert(typeToResolve.IsInstanceOfType(resolvedObject));
             return resolvedObject;
         }
 
-        private class RegistrationResult
+        private IRegistration GetRegistrationResult(RegistrationKey keyToResolve)
         {
-            public readonly object RegisteredInstance;
-            public readonly Type RegisteredType;
-
-            public bool IsTypeRegistration { get { return RegisteredType != null; } }
-            public bool IsInstanceRegistration { get { return !IsTypeRegistration; } }
-
-            public RegistrationResult(IRegistration registration)
-            {
-                RegisteredType = null;
-                RegisteredInstance = null;
-                if (registration is TypeRegistration)
-                    RegisteredType = ((TypeRegistration) registration).ImplementationType;
-                else
-                    RegisteredInstance = ((InstanceRegistration)registration).Instance;
-            }
-        }
-
-        private RegistrationResult GetRegistrationResult(Type typeToResolve)
-        {
-            var key = new RegistrationKey(typeToResolve, null);
             IRegistration registration;
-            if (registrations.TryGetValue(key, out registration))
+            if (registrations.TryGetValue(keyToResolve, out registration))
             {
-                return new RegistrationResult(registration);
+                return registration;
             }
 
             if (baseContainer != null)
-                return baseContainer.GetRegistrationResult(typeToResolve);
+                return baseContainer.GetRegistrationResult(keyToResolve);
+
+            if (IsSpecialNamedInstanceDictionaryKey(keyToResolve))
+            {
+                var targetType = keyToResolve.Type.GetGenericArguments()[1];
+                return GetRegistrationResult(CreateNamedInstanceDictionaryKey(targetType));
+            }
 
             return null;
+        }
+
+        private bool IsSpecialNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        {
+            return IsNamedInstanceDictionaryKey(keyToResolve) && 
+                   keyToResolve.Type.GetGenericArguments()[0] != typeof(string);
+        }
+
+        private bool IsNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        {
+            return keyToResolve.Name == null && keyToResolve.Type.IsGenericType && keyToResolve.Type.GetGenericTypeDefinition() == typeof(IDictionary<,>);
         }
 
         private object GetPooledObject(Type registeredType)
@@ -354,34 +429,14 @@ namespace BoDi
             return null;
         }
 
-        private object CreateObjectFor(Type typeToResolve, IEnumerable<Type> resolutionPath)
+        private object CreateObjectFor(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
         {
-            if (typeToResolve.IsPrimitive || typeToResolve == typeof(string))
-                throw new ObjectContainerException("Primitive types cannot be resolved: " + typeToResolve.FullName, resolutionPath);
+            if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string))
+                throw new ObjectContainerException("Primitive types cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);
 
-            var registrationResult = GetRegistrationResult(typeToResolve);
+            var registrationResult = GetRegistrationResult(keyToResolve) ?? new TypeRegistration(keyToResolve.Type);
 
-            if (registrationResult != null && registrationResult.IsInstanceRegistration)
-            {
-                return registrationResult.RegisteredInstance;
-            }
-
-            Type registeredType = typeToResolve;
-            if (registrationResult != null)
-                registeredType = registrationResult.RegisteredType;
-
-            object obj = GetPooledObject(registeredType);
-
-            if (obj == null)
-            {
-                if (registeredType.IsInterface)
-                    throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName, resolutionPath);
-
-                obj = CreateObject(registeredType, resolutionPath);
-                objectPool.Add(registeredType, obj);
-            }
-
-            return obj;
+            return registrationResult.Resolve(this, keyToResolve.Type, resolutionPath);
         }
 
         private object CreateObject(Type type, IEnumerable<Type> resolutionPath)
@@ -418,7 +473,7 @@ namespace BoDi
 
         private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, IEnumerable<Type> resolutionPath)
         {
-            return parameters.Select(p => Resolve(p.ParameterType, resolutionPath)).ToArray();
+            return parameters.Select(p => Resolve(p.ParameterType, resolutionPath, null)).ToArray();
         }
 
         #endregion

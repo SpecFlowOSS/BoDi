@@ -56,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DisposeTests.cs" />
+    <Compile Include="NamedRegistrationTests.cs" />
     <Compile Include="RegisterFromConfigTests.cs" />
     <Compile Include="RegisterInstanceTests.cs" />
     <Compile Include="SubContainerTests.cs" />

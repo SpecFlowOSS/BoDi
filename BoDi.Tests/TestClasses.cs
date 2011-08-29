@@ -130,4 +130,10 @@ namespace BoDi.Tests
             WasDisposed = true;
         }
     }
+
+    public enum MyEnumKey
+    {
+        One,
+        Two
+    }
 }
