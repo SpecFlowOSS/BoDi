@@ -115,4 +115,19 @@ namespace BoDi.Tests
     {
         
     }
+
+    public interface IDisposableClass
+    {
+        bool WasDisposed { get; }
+    }
+
+    public class DisposableClass1: IDisposableClass, IDisposable
+    {
+        public bool WasDisposed { get; private set; }
+
+        public void Dispose()
+        {
+            WasDisposed = true;
+        }
+    }
 }

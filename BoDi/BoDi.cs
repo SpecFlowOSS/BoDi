@@ -1,10 +1,10 @@
 ﻿/**************************************************************************************
  * 
- * MiniDi: A very simple IoC container, easily embeddable also as a source code. 
+ * BoDi: A very simple IoC container, easily embeddable also as a source code. 
  * 
- * MiniDi was created to support SpecFlow (http://www.specflow.org) by Gaspar Nagy (http://gasparnagy.blogspot.com/)
+ * BoDi was created to support SpecFlow (http://www.specflow.org) by Gaspar Nagy (http://gasparnagy.blogspot.com/)
  * 
- * Project source & unit tests: http://github.com/gasparnagy/MiniDi
+ * Project source & unit tests: http://github.com/gasparnagy/BoDi
  * License: Simplified BSD License
  * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED 
@@ -24,29 +24,33 @@ using System.Runtime.Serialization;
 
 namespace BoDi
 {
+#if !BODI_LIMITEDRUNTIME
     [Serializable]
+#endif
     public class ObjectContainerException : Exception
     {
-        public ObjectContainerException()
+        public ObjectContainerException(string message, IEnumerable<Type> resolutionPath) : base(GetMessage(message, resolutionPath))
         {
         }
 
-        public ObjectContainerException(string message) : base(message)
-        {
-        }
-
-        public ObjectContainerException(string message, Exception inner) : base(message, inner)
-        {
-        }
-
+#if !BODI_LIMITEDRUNTIME
         protected ObjectContainerException(
             SerializationInfo info,
             StreamingContext context) : base(info, context)
         {
         }
+#endif
+
+        static private string GetMessage(string message, IEnumerable<Type> resolutionPath)
+        {
+            if (resolutionPath == null || !resolutionPath.Any())
+                return message;
+
+            return string.Format("{0} (resolution path: {1})", message, string.Join("->", resolutionPath.Select(t => t.FullName).ToArray()));
+        }
     }
 
-    public interface IObjectContainer
+    public interface IObjectContainer: IDisposable
     {
         /// <summary>
         /// Registeres a type as the desired implementation type of an interface.
@@ -59,7 +63,7 @@ namespace BoDi
         /// </remarks>
         void RegisterTypeAs<TType, TInterface>() where TType : class, TInterface;
         /// <summary>
-        /// Registeres an instance 
+        /// Registers an instance 
         /// </summary>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
         /// <param name="instance">The instance implements the interface.</param>
@@ -72,6 +76,19 @@ namespace BoDi
         void RegisterInstanceAs<TInterface>(TInterface instance) where TInterface : class;
 
         /// <summary>
+        /// Registers an instance 
+        /// </summary>
+        /// <param name="instance">The instance implements the interface.</param>
+        /// <param name="interfaceType">Interface will be resolved</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
+        /// <exception cref="ObjectContainerException">If there was already a resolve for the <paramref name="interfaceType"/>.</exception>
+        /// <remarks>
+        ///     <para>Previous registrations can be overriden before the first resolution for the <paramref name="interfaceType"/>.</para>
+        ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
+        /// </remarks>
+        void RegisterInstanceAs(object instance, Type interfaceType);
+
+        /// <summary>
         /// Resolves an implementation object for an interface or type.
         /// </summary>
         /// <typeparam name="T">The interface or type.</typeparam>
@@ -80,13 +97,86 @@ namespace BoDi
         ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
         /// </remarks>
         T Resolve<T>();
+
+        /// <summary>
+        /// Resolves an implementation object for an interface or type.
+        /// </summary>
+        /// <param name="typeToResolve">The interface or type.</param>
+        /// <returns>An object implementing <paramref name="typeToResolve"/>.</returns>
+        /// <remarks>
+        ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
+        /// </remarks>
+        object Resolve(Type typeToResolve);
+    }
+
+    public interface IContainedInstance
+    {
+        IObjectContainer Container { get; }
     }
 
     public class ObjectContainer : IObjectContainer
     {
+        private struct RegistrationKey
+        {
+            readonly Type Type;
+            readonly string Name;
+
+            public RegistrationKey(Type type, string name)
+            {
+                if (type == null) throw new ArgumentNullException("type");
+
+                Type = type;
+                Name = name;
+            }
+
+            bool Equals(RegistrationKey other)
+            {
+                return Equals(other.Type, Type) && Equals(other.Name, Name);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (obj.GetType() != typeof (RegistrationKey)) return false;
+                return Equals((RegistrationKey) obj);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (Type.GetHashCode()*397) ^ (Name != null ? Name.GetHashCode() : 0);
+                }
+            }
+        }
+        private interface IRegistration
+        {
+            
+        }
+
+        private class TypeRegistration : IRegistration
+        {
+            public readonly Type ImplementationType;
+
+            public TypeRegistration(Type implementationType)
+            {
+                ImplementationType = implementationType;
+            }
+        }
+
+        private class InstanceRegistration : IRegistration
+        {
+            public readonly object Instance;
+
+            public InstanceRegistration(object instance)
+            {
+                Instance = instance;
+            }
+        }
+
+        private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
-        private readonly Dictionary<Type, Type> typeRegistrations = new Dictionary<Type, Type>();
-        private readonly Dictionary<Type, object> instanceRegistrations = new Dictionary<Type, object>();
+        private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly Dictionary<Type, object> resolvedObjects = new Dictionary<Type, object>();
         private readonly Dictionary<Type, object> objectPool = new Dictionary<Type, object>();
 
@@ -95,12 +185,21 @@ namespace BoDi
             RegisterInstanceAs<IObjectContainer>(this);
         }
 
-        public ObjectContainer(ObjectContainer baseContainer) : this()
+        public ObjectContainer(IObjectContainer baseContainer) : this()
         {
-            this.baseContainer = baseContainer;
+            if (baseContainer != null && !(baseContainer is ObjectContainer))
+                throw new ArgumentException("Base container must be an ObjectContainer", "baseContainer");
+
+            this.baseContainer = (ObjectContainer)baseContainer;
         }
 
         #region Registration
+
+        public void RegisterTypeAs<TInterface>(Type implementationType) where TInterface : class
+        {
+            Type interfaceType = typeof(TInterface);
+            RegisterTypeAs(implementationType, interfaceType);
+        }
 
         public void RegisterTypeAs<TType, TInterface>() where TType : class, TInterface
         {
@@ -114,35 +213,43 @@ namespace BoDi
             AssertNotResolved(interfaceType);
 
             ClearRegistrations(interfaceType);
-            typeRegistrations[interfaceType] = implementationType;
+
+            var key = new RegistrationKey(interfaceType, null);
+            registrations[key] = new TypeRegistration(implementationType);
+        }
+
+        public void RegisterInstanceAs(object instance, Type interfaceType)
+        {
+            if (instance == null)
+                throw new ArgumentNullException("instance");
+            AssertNotResolved(interfaceType);
+
+            ClearRegistrations(interfaceType);
+            var key = new RegistrationKey(interfaceType, null);
+            registrations[key] = new InstanceRegistration(instance);
+            objectPool[instance.GetType()] = instance;
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance) where TInterface : class
         {
-            if (instance == null)
-                throw new ArgumentNullException("instance");
-            AssertNotResolved(typeof(TInterface));
-
-            ClearRegistrations(typeof(TInterface));
-            instanceRegistrations[typeof(TInterface)] = instance;
-            objectPool[instance.GetType()] = instance;
+            RegisterInstanceAs(instance, typeof(TInterface));
         }
 
         private void AssertNotResolved(Type interfaceType)
         {
             if (resolvedObjects.ContainsKey(interfaceType))
-                throw new ObjectContainerException("An object have been resolved for this interface already.");
+                throw new ObjectContainerException("An object have been resolved for this interface already.", null);
         }
 
         private void ClearRegistrations(Type interfaceType)
         {
-            typeRegistrations.Remove(interfaceType);
-            instanceRegistrations.Remove(interfaceType);
+            registrations.Remove(new RegistrationKey(interfaceType, null)); //TODO
         }
 
+#if !BODI_LIMITEDRUNTIME
         public void RegisterFromConfiguration()
         {
-            var section = (ConfigurationSectionHandler)ConfigurationManager.GetSection("boDi");
+            var section = (BoDiConfigurationSection)ConfigurationManager.GetSection("boDi");
             if (section == null)
                 return;
 
@@ -167,6 +274,7 @@ namespace BoDi
 
             RegisterTypeAs(implementationType, interfaceType);
         }
+#endif
 
         #endregion
 
@@ -181,12 +289,19 @@ namespace BoDi
             return (T)resolvedObject;
         }
 
-        private object Resolve(Type typeToResolve)
+        public object Resolve(Type typeToResolve)
         {
+            return Resolve(typeToResolve, Enumerable.Empty<Type>());
+        }
+
+        private object Resolve(Type typeToResolve, IEnumerable<Type> resolutionPath)
+        {
+            AssertNotDisposed();
+
             object resolvedObject;
             if (!resolvedObjects.TryGetValue(typeToResolve, out resolvedObject))
             {
-                resolvedObject = CreateObjectFor(typeToResolve);
+                resolvedObject = CreateObjectFor(typeToResolve, resolutionPath);
                 resolvedObjects.Add(typeToResolve, resolvedObject);
             }
             Debug.Assert(typeToResolve.IsInstanceOfType(resolvedObject));
@@ -201,31 +316,24 @@ namespace BoDi
             public bool IsTypeRegistration { get { return RegisteredType != null; } }
             public bool IsInstanceRegistration { get { return !IsTypeRegistration; } }
 
-            public RegistrationResult(object registeredInstance)
+            public RegistrationResult(IRegistration registration)
             {
-                RegisteredInstance = registeredInstance;
                 RegisteredType = null;
-            }
-
-            public RegistrationResult(Type registeredType)
-            {
-                RegisteredType = registeredType;
                 RegisteredInstance = null;
+                if (registration is TypeRegistration)
+                    RegisteredType = ((TypeRegistration) registration).ImplementationType;
+                else
+                    RegisteredInstance = ((InstanceRegistration)registration).Instance;
             }
         }
 
         private RegistrationResult GetRegistrationResult(Type typeToResolve)
         {
-            object obj;
-            if (instanceRegistrations.TryGetValue(typeToResolve, out obj))
+            var key = new RegistrationKey(typeToResolve, null);
+            IRegistration registration;
+            if (registrations.TryGetValue(key, out registration))
             {
-                return new RegistrationResult(obj);
-            }
-
-            Type registeredType;
-            if (typeRegistrations.TryGetValue(typeToResolve, out registeredType))
-            {
-                return new RegistrationResult(registeredType);
+                return new RegistrationResult(registration);
             }
 
             if (baseContainer != null)
@@ -246,8 +354,11 @@ namespace BoDi
             return null;
         }
 
-        private object CreateObjectFor(Type typeToResolve)
+        private object CreateObjectFor(Type typeToResolve, IEnumerable<Type> resolutionPath)
         {
+            if (typeToResolve.IsPrimitive || typeToResolve == typeof(string))
+                throw new ObjectContainerException("Primitive types cannot be resolved: " + typeToResolve.FullName, resolutionPath);
+
             var registrationResult = GetRegistrationResult(typeToResolve);
 
             if (registrationResult != null && registrationResult.IsInstanceRegistration)
@@ -264,49 +375,77 @@ namespace BoDi
             if (obj == null)
             {
                 if (registeredType.IsInterface)
-                    throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName);
+                    throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName, resolutionPath);
 
-                obj = CreateObject(registeredType);
+                obj = CreateObject(registeredType, resolutionPath);
                 objectPool.Add(registeredType, obj);
             }
 
             return obj;
         }
 
-        private object CreateObject(Type type)
+        private object CreateObject(Type type, IEnumerable<Type> resolutionPath)
         {
             var ctors = type.GetConstructors();
+            if (ctors.Length == 0)
+                ctors = type.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (ctors.Length == 0)
+            {
+                throw new ObjectContainerException("Class must have a constructor! " + type.FullName, resolutionPath);
+            }
+
+            int maxParamCount = ctors.Max(ctor => ctor.GetParameters().Length);
+            var maxParamCountCtors = ctors.Where(ctor => ctor.GetParameters().Length == maxParamCount).ToArray();
 
             object obj;
-            if (ctors.Length == 1)
+            if (maxParamCountCtors.Length == 1)
             {
-                ConstructorInfo ctor = ctors[0];
-                var args = ResolveArguments(ctor.GetParameters());
+                ConstructorInfo ctor = maxParamCountCtors[0];
+                if (resolutionPath.Contains(type))
+                    throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath);
+
+                var args = ResolveArguments(ctor.GetParameters(), resolutionPath.Concat(new[] { type }));
                 obj = ctor.Invoke(args);
-            }
-            else if (ctors.Length == 0)
-            {
-                throw new ObjectContainerException("Class must have a public constructor! " + type.FullName);
             }
             else
             {
-                throw new ObjectContainerException("Multiple public constructors are not supported! " + type.FullName);
+                throw new ObjectContainerException("Multiple public constructors with same maximum parameter count are not supported! " + type.FullName, resolutionPath);
             }
 
             return obj;
         }
 
-        private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters)
+        private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, IEnumerable<Type> resolutionPath)
         {
-            return parameters.Select(p => Resolve(p.ParameterType)).ToArray();
+            return parameters.Select(p => Resolve(p.ParameterType, resolutionPath)).ToArray();
         }
 
         #endregion
+
+        private void AssertNotDisposed()
+        {
+            if (isDisposed)
+                throw new ObjectContainerException("Object container disposed", null);
+        }
+
+        public void Dispose()
+        {
+            isDisposed = true;
+
+            foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
+                obj.Dispose();
+
+            objectPool.Clear();
+            registrations.Clear();
+            resolvedObjects.Clear();
+        }
     }
 
     #region Configuration handling
+#if !BODI_LIMITEDRUNTIME
 
-    public class ConfigurationSectionHandler : ConfigurationSection
+    public class BoDiConfigurationSection : ConfigurationSection
     {
         [ConfigurationProperty("", Options = ConfigurationPropertyOptions.IsDefaultCollection)]
         [ConfigurationCollection(typeof(ContainerRegistrationCollection), AddItemName = "register")]
@@ -347,5 +486,6 @@ namespace BoDi
         }
     }
 
+#endif
     #endregion
 }
