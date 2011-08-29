@@ -22,7 +22,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
 
-namespace MiniDi
+namespace BoDi
 {
     [Serializable]
     public class ObjectContainerException : Exception
@@ -142,7 +142,7 @@ namespace MiniDi
 
         public void RegisterFromConfiguration()
         {
-            var section = (ConfigurationSectionHandler)ConfigurationManager.GetSection("miniDi");
+            var section = (ConfigurationSectionHandler)ConfigurationManager.GetSection("boDi");
             if (section == null)
                 return;
 

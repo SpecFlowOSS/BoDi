@@ -1,6 +1,6 @@
 ﻿using NUnit.Framework;
 
-namespace MiniDi.Tests
+namespace BoDi.Tests
 {
     [TestFixture]
     public class RegisterTypeTests

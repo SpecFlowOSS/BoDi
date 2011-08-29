@@ -4,7 +4,7 @@ using System.Configuration;
 using System.Linq;
 using System.Text;
 
-namespace MiniDi.Tests
+namespace BoDi.Tests
 {
     public class TestConfigSection : ConfigurationSection
     {

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using NUnit.Framework;
 
-namespace MiniDi.Tests
+namespace BoDi.Tests
 {
     [TestFixture]
     public class RegisterFromConfigTests
