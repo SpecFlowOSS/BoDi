@@ -17,6 +17,7 @@
 using System;
 using System.Collections;
 using System.Configuration;
+using System.Globalization;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -69,27 +70,29 @@ namespace BoDi
         /// Registers an instance 
         /// </summary>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <param name="instance">The instance implements the interface.</param>
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
-        ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
+        ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
-        void RegisterInstanceAs<TInterface>(TInterface instance) where TInterface : class;
+        void RegisterInstanceAs<TInterface>(TInterface instance, string name = null) where TInterface : class;
 
         /// <summary>
         /// Registers an instance 
         /// </summary>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <param name="instance">The instance implements the interface.</param>
         /// <param name="interfaceType">Interface will be resolved</param>
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <paramref name="interfaceType"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <paramref name="interfaceType"/>.</para>
-        ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
+        ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
-        void RegisterInstanceAs(object instance, Type interfaceType);
+        void RegisterInstanceAs(object instance, Type interfaceType, string name = null);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -99,7 +102,18 @@ namespace BoDi
         /// <remarks>
         ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
         /// </remarks>
-        T Resolve<T>(string name = null);
+        T Resolve<T>();
+
+        /// <summary>
+        /// Resolves an implementation object for an interface or type.
+        /// </summary>
+        /// <param name="name">A name to resolve named instance, otherwise null.</param>
+        /// <typeparam name="T">The interface or type.</typeparam>
+        /// <returns>An object implementing <typeparamref name="T"/>.</returns>
+        /// <remarks>
+        ///     <para>The container pools the objects, so if the interface is resolved twice or the same type is registered for multiple interfaces, a single instance is created and returned.</para>
+        /// </remarks>
+        T Resolve<T>(string name);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -133,48 +147,57 @@ namespace BoDi
                 Name = name;
             }
 
+            public override string ToString()
+            {
+                Debug.Assert(Type.FullName != null);
+                if (Name == null)
+                    return Type.FullName;
+
+                return string.Format("{0}('{1}')", Type.FullName, Name);
+            }
+
             bool Equals(RegistrationKey other)
             {
-                return Equals(other.Type, Type) && Equals(other.Name, Name);
+                return Equals(other.Type, Type) && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
             }
 
             public override bool Equals(object obj)
             {
                 if (ReferenceEquals(null, obj)) return false;
-                if (obj.GetType() != typeof (RegistrationKey)) return false;
-                return Equals((RegistrationKey) obj);
+                if (obj.GetType() != typeof(RegistrationKey)) return false;
+                return Equals((RegistrationKey)obj);
             }
 
             public override int GetHashCode()
             {
                 unchecked
                 {
-                    return (Type.GetHashCode()*397) ^ (Name != null ? Name.GetHashCode() : 0);
+                    return Type.GetHashCode();
                 }
             }
         }
         private interface IRegistration
         {
-            object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath);
+            object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath);
         }
 
         private class TypeRegistration : IRegistration
         {
-            public readonly Type ImplementationType;
+            readonly Type ImplementationType;
 
             public TypeRegistration(Type implementationType)
             {
                 ImplementationType = implementationType;
             }
 
-            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
             {
                 object obj = container.GetPooledObject(ImplementationType);
 
                 if (obj == null)
                 {
                     if (ImplementationType.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + typeToResolve.FullName, resolutionPath);
+                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
 
                     obj = container.CreateObject(ImplementationType, resolutionPath);
                     container.objectPool.Add(ImplementationType, obj);
@@ -182,27 +205,38 @@ namespace BoDi
 
                 return obj;
             }
+
+            public override string ToString()
+            {
+                return "Type: " + ImplementationType.FullName;
+            }
         }
 
         private class InstanceRegistration : IRegistration
         {
-            public readonly object Instance;
+            readonly object Instance;
 
             public InstanceRegistration(object instance)
             {
                 Instance = instance;
             }
 
-            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
             {
                 return Instance;
+            }
+
+            public override string ToString()
+            {
+                return "Instance: " + Instance;
             }
         }
 
         private class NamedInstanceDictionaryRegistration : IRegistration
         {
-            public object Resolve(ObjectContainer container, Type typeToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
             {
+                var typeToResolve = keyToResolve.Type;
                 Debug.Assert(typeToResolve.IsGenericType && typeToResolve.GetGenericTypeDefinition() == typeof(IDictionary<,>));
 
                 var genericArguments = typeToResolve.GetGenericArguments();
@@ -228,7 +262,7 @@ namespace BoDi
                 if (keyType.IsEnum)
                     return Enum.Parse(keyType, name, true);
 
-                return Convert.ChangeType(name, keyType);
+                return Convert.ChangeType(name, keyType, CultureInfo.CurrentCulture);
             }
         }
 
@@ -295,11 +329,11 @@ namespace BoDi
             AddRegistration(registrationKey, new TypeRegistration(implementationType));
         }
 
-        public void RegisterInstanceAs(object instance, Type interfaceType)
+        public void RegisterInstanceAs(object instance, Type interfaceType, string name = null)
         {
             if (instance == null)
                 throw new ArgumentNullException("instance");
-            var registrationKey = new RegistrationKey(interfaceType, null); //TODO
+            var registrationKey = new RegistrationKey(interfaceType, name);
             AssertNotResolved(registrationKey);
 
             ClearRegistrations(registrationKey);
@@ -307,9 +341,9 @@ namespace BoDi
             objectPool[instance.GetType()] = instance;
         }
 
-        public void RegisterInstanceAs<TInterface>(TInterface instance) where TInterface : class
+        public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null) where TInterface : class
         {
-            RegisterInstanceAs(instance, typeof(TInterface));
+            RegisterInstanceAs(instance, typeof(TInterface), name);
         }
 
         private void AssertNotResolved(RegistrationKey interfaceType)
@@ -349,7 +383,7 @@ namespace BoDi
             Type interfaceType = Type.GetType(registrationConfigElement.Interface, true);
             Type implementationType = Type.GetType(registrationConfigElement.Implementation, true);
 
-            RegisterTypeAs(implementationType, interfaceType, null); //TODO
+            RegisterTypeAs(implementationType, interfaceType, string.IsNullOrEmpty(registrationConfigElement.Name) ? null : registrationConfigElement.Name);
         }
 #endif
 
@@ -357,7 +391,12 @@ namespace BoDi
 
         #region Resolve
 
-        public T Resolve<T>(string name = null)
+        public T Resolve<T>()
+        {
+            return Resolve<T>(null);
+        }
+
+        public T Resolve<T>(string name)
         {
             Type typeToResolve = typeof(T);
 
@@ -403,6 +442,11 @@ namespace BoDi
                 return GetRegistrationResult(CreateNamedInstanceDictionaryKey(targetType));
             }
 
+            if(IsNamedInstanceDictionaryKey(keyToResolve))
+            {
+                return new NamedInstanceDictionaryRegistration();
+            }
+
             return null;
         }
 
@@ -436,7 +480,7 @@ namespace BoDi
 
             var registrationResult = GetRegistrationResult(keyToResolve) ?? new TypeRegistration(keyToResolve.Type);
 
-            return registrationResult.Resolve(this, keyToResolve.Type, resolutionPath);
+            return registrationResult.Resolve(this, keyToResolve, resolutionPath);
         }
 
         private object CreateObject(Type type, IEnumerable<Type> resolutionPath)
@@ -520,7 +564,21 @@ namespace BoDi
 
         protected override object GetElementKey(ConfigurationElement element)
         {
-            return ((ContainerRegistrationConfigElement)element).Interface;
+            var registrationConfigElement = ((ContainerRegistrationConfigElement)element);
+            string elementKey = registrationConfigElement.Interface;
+            if (registrationConfigElement.Name != null)
+                elementKey = elementKey + "/" + registrationConfigElement.Name;
+            return elementKey;
+        }
+
+        public void Add(string implementationType, string interfaceType, string name = null)
+        {
+            BaseAdd(new ContainerRegistrationConfigElement
+                        {
+                            Implementation = implementationType,
+                            Interface = interfaceType,
+                            Name = name
+                        });
         }
     }
 
@@ -538,6 +596,13 @@ namespace BoDi
         {
             get { return (string)this["type"]; }
             set { this["type"] = value; }
+        }
+
+        [ConfigurationProperty("name", IsRequired = false, DefaultValue = null)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+            set { this["name"] = value; }
         }
     }
 
