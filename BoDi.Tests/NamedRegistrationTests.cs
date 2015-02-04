@@ -125,5 +125,23 @@ namespace BoDi.Tests
             instanceDict[MyEnumKey.One].ShouldBeType<VerySimpleClass>();
             instanceDict[MyEnumKey.Two].ShouldBeType<SimpleClassWithDefaultCtor>();
         }
+
+        [Test]
+        public void ShouldBeAbleToInjectResolvedName()
+        {
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<SimpleClassWithRegisteredNameDependency, IInterface1>("a_name");
+
+            // when
+
+            var obj = container.Resolve<IInterface1>("a_name");
+
+            // then
+
+            obj.ShouldBeType<SimpleClassWithRegisteredNameDependency>();
+            ((SimpleClassWithRegisteredNameDependency)obj).RegisteredName.ShouldEqual("a_name");
+        }
+
+
     }
 }

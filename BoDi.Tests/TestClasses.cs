@@ -33,6 +33,19 @@ namespace BoDi.Tests
     }
 
     /// <summary>
+    /// A very simple class with a dependency on the registered name
+    /// </summary>
+    public class SimpleClassWithRegisteredNameDependency : IInterface1
+    {
+        public string RegisteredName { get; private set; }
+
+        public SimpleClassWithRegisteredNameDependency(string registeredName)
+        {
+            RegisteredName = registeredName;
+        }
+    }
+
+    /// <summary>
     /// Another very simple class without dependencies and ctor
     /// </summary>
     public class AnotherVerySimpleClass : IInterface2
