@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("BoDi.Tests")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("https://github.com/gasparnagy/bodi")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("TechTalk")]
-[assembly: AssemblyProduct("BoDi.Tests")]
-[assembly: AssemblyCopyright("Copyright © TechTalk 2010")]
+[assembly: AssemblyCompany("gasparnagy.com")]
+[assembly: AssemblyProduct("BoDi")]
+[assembly: AssemblyCopyright("Copyright (C) 2010-2015, Gaspar Nagy (http://gasparnagy.com)")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

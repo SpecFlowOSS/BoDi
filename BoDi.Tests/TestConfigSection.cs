@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if !BODI_LIMITEDRUNTIME
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
@@ -17,3 +18,4 @@ namespace BoDi.Tests
         }
     }
 }
+#endif
