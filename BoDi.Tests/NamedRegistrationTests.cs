@@ -17,6 +17,13 @@ namespace BoDi.Tests
             container.RegisterTypeAs<VerySimpleClass, IInterface1>("a_name");
         }
 
+        [Test]
+        public void ShouldBeAbleToRegisterTypeWithNameDynamically()
+        {
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<IInterface1>(typeof(VerySimpleClass), "a_name");
+        }
+
 /*
         [Test]
         public void SingleNamedRegistrationShouldBehaveLikeWithoutName()

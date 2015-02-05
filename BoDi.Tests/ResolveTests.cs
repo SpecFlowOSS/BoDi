@@ -62,6 +62,24 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldResolveSimpleClassWithInternalCtor()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<SimpleClassWithInternalCtor, IInterface1>();
+
+            // when
+
+            var obj = container.Resolve<IInterface1>();
+
+            // then
+
+            Assert.IsNotNull(obj);
+            Assert.IsInstanceOf(typeof(SimpleClassWithInternalCtor), obj);
+            Assert.AreEqual("Initialized", ((SimpleClassWithInternalCtor)obj).Status);
+        }
+
+        [Test]
         public void ShouldReturnTheSameIfResolvedTwice()
         {
             // given
@@ -265,6 +283,18 @@ namespace BoDi.Tests
             // then
             Assert.IsNotNull(obj);
             Assert.AreSame(container, obj);
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types cannot be resolved", MatchType = MessageMatch.Contains)]
+        public void ShouldNotBeAbleToResolveStringTypes()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.Resolve<string>();
         }
 
     }

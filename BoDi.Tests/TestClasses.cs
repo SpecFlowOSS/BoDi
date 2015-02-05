@@ -53,6 +53,19 @@ namespace BoDi.Tests
     }
 
     /// <summary>
+    /// A simple class without dependencies and but an internal default constructor
+    /// </summary>
+    public class SimpleClassWithInternalCtor : IInterface1
+    {
+        public readonly string Status = "";
+
+        internal SimpleClassWithInternalCtor()
+        {
+            Status = "Initialized";
+        }
+    }
+
+    /// <summary>
     /// A clsss with a dependency that does not have further dependencies
     /// </summary>
     public class ClassWithSimpleDependency : IInterface3

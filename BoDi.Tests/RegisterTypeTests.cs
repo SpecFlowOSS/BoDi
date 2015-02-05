@@ -6,6 +6,23 @@ namespace BoDi.Tests
     public class RegisterTypeTests
     {
         [Test]
+        public void ShouldRegisterTypeDynamically()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<IInterface1>(typeof(VerySimpleClass));
+
+            // when
+
+            var obj = container.Resolve<IInterface1>();
+
+            // then
+
+            Assert.IsNotNull(obj);
+            Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
+        }
+
+        [Test]
         public void ShouldAllowOverrideRegistrationBeforeResolve()
         {
             // given

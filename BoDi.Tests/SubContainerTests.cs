@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Moq;
 using NUnit.Framework;
 
 namespace BoDi.Tests
@@ -64,6 +65,14 @@ namespace BoDi.Tests
             Assert.IsNotNull(obj);
             Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
             Assert.AreNotEqual(obj, baseObj);
+        }
+
+        [Test, ExpectedException(typeof(ArgumentException))]
+        public void BaseContainerMustBeAnObjectContainer()
+        {
+            var otherContainer = new Mock<IObjectContainer>();
+
+            var container = new ObjectContainer(otherContainer.Object);
         }
     }
 }
