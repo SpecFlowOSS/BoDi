@@ -13,13 +13,13 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
  * DEALINGS IN THE SOFTWARE.
  * 
- * Changelog
+ * Change history
  * 
  * v1.2
  *   - should not allow resolving value types (structs)
  *   - should list registrations in container ToString()
  *   - should not dispose registered instances by default, disposal can be requested by the 'dispose: true' parameter
- *   - smaller code refactring
+ *   - smaller code refactoring
  * 
  * v1.1 - released with SpecFlow v1.9.0
  * 
@@ -65,14 +65,14 @@ namespace BoDi
     public interface IObjectContainer: IDisposable
     {
         /// <summary>
-        /// Registeres a type as the desired implementation type of an interface.
+        /// Registers a type as the desired implementation type of an interface.
         /// </summary>
         /// <typeparam name="TType">Implementation type</typeparam>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
         /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
-        ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
+        ///     <para>Previous registrations can be overridden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         /// </remarks>
         void RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
 
@@ -86,7 +86,7 @@ namespace BoDi
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
-        ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
+        ///     <para>Previous registrations can be overridden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
         void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class;
@@ -101,7 +101,7 @@ namespace BoDi
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <paramref name="interfaceType"/>.</exception>
         /// <remarks>
-        ///     <para>Previous registrations can be overriden before the first resolution for the <paramref name="interfaceType"/>.</para>
+        ///     <para>Previous registrations can be overridden before the first resolution for the <paramref name="interfaceType"/>.</para>
         ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
         void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false);
@@ -476,7 +476,7 @@ namespace BoDi
                 return GetRegistrationResult(CreateNamedInstanceDictionaryKey(targetType));
             }
 
-            // if there was no named ragistration, we still return an empty dictionary
+            // if there was no named registration, we still return an empty dictionary
             if (IsDefaultNamedInstanceDictionaryKey(keyToResolve))
             {
                 return new NamedInstanceDictionaryRegistration();
