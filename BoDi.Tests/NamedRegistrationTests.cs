@@ -70,6 +70,23 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldNotReuseObjectsWithTheSameTypeButResolvedWithDifferentName()
+        {
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<VerySimpleClass, IInterface1>("a_name");
+            container.RegisterTypeAs<VerySimpleClass, IInterface1>("another_name");
+
+            // when
+
+            var obj = container.Resolve<IInterface1>("a_name");
+            var otherObj = container.Resolve<IInterface1>("another_name");
+
+            // then
+
+            obj.ShouldNotBeSameAs(otherObj);
+        }
+
+        [Test]
         public void ShouldBeAbleToRegisterMultipleTypesWithDifferentNames()
         {
             var container = new ObjectContainer();
