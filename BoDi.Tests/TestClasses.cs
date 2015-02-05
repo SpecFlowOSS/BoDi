@@ -70,11 +70,24 @@ namespace BoDi.Tests
     /// </summary>
     public class SimpleClassWithDefaultCtor : IInterface1
     {
-        public readonly string Status = "";
+        public string Status = "";
 
         public SimpleClassWithDefaultCtor()
         {
             Status = "Initialized";
+        }
+
+        public override string ToString()
+        {
+            return string.Format("SimpleClassWithDefaultCtor: {0}", Status);
+        }
+    }
+
+    public class SimpleClassWithFailingToString : IInterface1
+    {
+        public override string ToString()
+        {
+            throw new Exception("simulated error");
         }
     }
 

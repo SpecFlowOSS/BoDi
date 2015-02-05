@@ -231,7 +231,17 @@ namespace BoDi
 
             public override string ToString()
             {
-                return "Instance: " + instance;
+                string instanceText;
+                try
+                {
+                    instanceText = instance.ToString();
+                }
+                catch (Exception ex)
+                {
+                    instanceText = ex.Message;
+                }
+
+                return "Instance: " + instanceText;
             }
         }
 
@@ -533,6 +543,14 @@ namespace BoDi
         }
 
         #endregion
+
+        public override string ToString()
+        {
+            return string.Join(Environment.NewLine,
+                registrations
+                    .Where(r => !(r.Value is NamedInstanceDictionaryRegistration))
+                    .Select(r => string.Format("{0} -> {1}", r.Key, (r.Key.Type == typeof(IObjectContainer) && r.Key.Name == null) ? "<self>" : r.Value.ToString())));
+        }
 
         private void AssertNotDisposed()
         {
