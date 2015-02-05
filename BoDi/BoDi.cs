@@ -18,6 +18,7 @@
  * v1.2
  *   - should not allow resolving value types (structs)
  *   - should list registrations in container ToString()
+ *   - should not dispose registered instances by default, disposal can be requested by the 'dispose: true' parameter
  *   - smaller code refactring
  * 
  * v1.1 - released with SpecFlow v1.9.0
@@ -66,9 +67,9 @@ namespace BoDi
         /// <summary>
         /// Registeres a type as the desired implementation type of an interface.
         /// </summary>
-        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <typeparam name="TType">Implementation type</typeparam>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
@@ -79,29 +80,31 @@ namespace BoDi
         /// Registers an instance 
         /// </summary>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
-        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <param name="instance">The instance implements the interface.</param>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
+        /// <param name="dispose">Whether the instance should be disposed on container dispose, otherwise <c>false</c>.</param>
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
-        void RegisterInstanceAs<TInterface>(TInterface instance, string name = null) where TInterface : class;
+        void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class;
 
         /// <summary>
         /// Registers an instance 
         /// </summary>
-        /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <param name="instance">The instance implements the interface.</param>
         /// <param name="interfaceType">Interface will be resolved</param>
+        /// <param name="name">A name to register named instance, otherwise null.</param>
+        /// <param name="dispose">Whether the instance should be disposed on container dispose, otherwise <c>false</c>.</param>
         /// <exception cref="ArgumentNullException">If <paramref name="instance"/> is null.</exception>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <paramref name="interfaceType"/>.</exception>
         /// <remarks>
         ///     <para>Previous registrations can be overriden before the first resolution for the <paramref name="interfaceType"/>.</para>
         ///     <para>The instance will be registered in the object pool, so if a <see cref="Resolve{T}()"/> (for another interface) would require an instance of the dynamic type of the <paramref name="instance"/>, the <paramref name="instance"/> will be returned.</para>
         /// </remarks>
-        void RegisterInstanceAs(object instance, Type interfaceType, string name = null);
+        void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -254,6 +257,16 @@ namespace BoDi
             }
         }
 
+        private class NonDisposableWrapper
+        {
+            public object Object { get; private set; }
+
+            public NonDisposableWrapper(object obj)
+            {
+                Object = obj;
+            }
+        }
+
         private class NamedInstanceDictionaryRegistration : IRegistration
         {
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
@@ -345,7 +358,7 @@ namespace BoDi
             AddRegistration(registrationKey, new TypeRegistration(implementationType));
         }
 
-        public void RegisterInstanceAs(object instance, Type interfaceType, string name = null)
+        public void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false)
         {
             if (instance == null)
                 throw new ArgumentNullException("instance");
@@ -354,12 +367,17 @@ namespace BoDi
 
             ClearRegistrations(registrationKey);
             AddRegistration(registrationKey, new InstanceRegistration(instance));
-            objectPool[new RegistrationKey(instance.GetType(), name)] = instance;
+            objectPool[new RegistrationKey(instance.GetType(), name)] = GetPoolableInstance(instance, dispose);
         }
 
-        public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null) where TInterface : class
+        private static object GetPoolableInstance(object instance, bool dispose)
         {
-            RegisterInstanceAs(instance, typeof(TInterface), name);
+            return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
+        }
+
+        public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class
+        {
+            RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
 
         private void AssertNotResolved(RegistrationKey interfaceType)
@@ -487,13 +505,25 @@ namespace BoDi
         private object GetPooledObject(RegistrationKey pooledObjectKey)
         {
             object obj;
-            if (objectPool.TryGetValue(pooledObjectKey, out obj))
+            if (GetObjectFromPool(pooledObjectKey, out obj))
                 return obj;
 
             if (baseContainer != null)
                 return baseContainer.GetPooledObject(pooledObjectKey);
 
             return null;
+        }
+
+        private bool GetObjectFromPool(RegistrationKey pooledObjectKey, out object obj)
+        {
+            if (!objectPool.TryGetValue(pooledObjectKey, out obj))
+                return false;
+
+            var nonDisposableWrapper = obj as NonDisposableWrapper;
+            if (nonDisposableWrapper != null)
+                obj = nonDisposableWrapper.Object;
+
+            return true;
         }
 
         private object ResolveObject(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)

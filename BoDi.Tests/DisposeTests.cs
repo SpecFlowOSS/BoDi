@@ -45,13 +45,27 @@ namespace BoDi.Tests
         {
             var container = new ObjectContainer();
             var obj = new DisposableClass1();
-            container.RegisterInstanceAs<IDisposableClass>(obj);
+            container.RegisterInstanceAs<IDisposableClass>(obj, dispose: true);
 
             container.Resolve<IDisposableClass>();
 
             container.Dispose();
 
             obj.WasDisposed.ShouldBeTrue();
+        }
+
+        [Test]
+        public void ShouldNotDisposeObjectsRegisteredAsInstance()
+        {
+            var container = new ObjectContainer();
+            var obj = new DisposableClass1();
+            container.RegisterInstanceAs<IDisposableClass>(obj);
+
+            container.Resolve<IDisposableClass>();
+
+            container.Dispose();
+
+            obj.WasDisposed.ShouldBeFalse();
         }
 
         [Test]
