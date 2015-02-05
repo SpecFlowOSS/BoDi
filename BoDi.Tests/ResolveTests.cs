@@ -26,6 +26,28 @@ namespace BoDi.Tests
             Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
         }
 
+        [Test, ExpectedException(typeof(ObjectContainerException))]
+        public void ShouldNotBeAbleToResolveStructsWithoutCtor()
+        {
+            // given
+            var container = new ObjectContainer();
+
+            // when
+
+            container.Resolve<MyStructWithoutCtor>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException))]
+        public void ShouldNotBeAbleToResolveStructsWithCtor()
+        {
+            // given
+            var container = new ObjectContainer();
+
+            // when
+
+            container.Resolve<MyStructWithDependencies>();
+        }
+
         [Test]
         public void ShouldResolveRegisteredInstance()
         {
@@ -285,7 +307,7 @@ namespace BoDi.Tests
             Assert.AreSame(container, obj);
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types cannot be resolved", MatchType = MessageMatch.Contains)]
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)]
         public void ShouldNotBeAbleToResolveStringTypes()
         {
             // given
@@ -295,6 +317,18 @@ namespace BoDi.Tests
             // when 
 
             container.Resolve<string>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)]
+        public void ShouldNotBeAbleToResolvePrimitiveTypes()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.Resolve<int>();
         }
 
         [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]

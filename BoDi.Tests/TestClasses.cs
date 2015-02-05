@@ -32,6 +32,19 @@ namespace BoDi.Tests
     {
     }
 
+    public struct MyStructWithDependencies
+    {
+        public MyStructWithDependencies(VerySimpleClass dep)
+        {
+            
+        }
+    }
+
+    public struct MyStructWithoutCtor
+    {
+        
+    }
+
     /// <summary>
     /// A very simple class with a dependency on the registered name
     /// </summary>

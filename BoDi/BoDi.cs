@@ -259,13 +259,11 @@ namespace BoDi
 
             private object ChangeType(string name, Type keyType)
             {
-                if (keyType == typeof(string))
-                    return name;
-
                 if (keyType.IsEnum)
                     return Enum.Parse(keyType, name, true);
 
-                return Convert.ChangeType(name, keyType, CultureInfo.CurrentCulture);
+                Debug.Assert(keyType == typeof(string));
+                return name;
             }
         }
 
@@ -442,7 +440,7 @@ namespace BoDi
             }
 
             // if there was no named ragistration, we still return an empty dictionary
-            if(IsNamedInstanceDictionaryKey(keyToResolve))
+            if (IsDefaultNamedInstanceDictionaryKey(keyToResolve))
             {
                 return new NamedInstanceDictionaryRegistration();
             }
@@ -450,10 +448,16 @@ namespace BoDi
             return null;
         }
 
+        private bool IsDefaultNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        {
+            return IsNamedInstanceDictionaryKey(keyToResolve) && 
+                   keyToResolve.Type.GetGenericArguments()[0] == typeof(string);
+        }
+
         private bool IsSpecialNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
         {
             return IsNamedInstanceDictionaryKey(keyToResolve) && 
-                   keyToResolve.Type.GetGenericArguments()[0] != typeof(string);
+                   keyToResolve.Type.GetGenericArguments()[0].IsEnum;
         }
 
         private bool IsNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
@@ -475,8 +479,8 @@ namespace BoDi
 
         private object ResolveObject(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
         {
-            if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string))
-                throw new ObjectContainerException("Primitive types cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);
+            if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string) || keyToResolve.Type.IsValueType)
+                throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);
 
             var registrationResult = GetRegistrationResult(keyToResolve) ?? new TypeRegistration(keyToResolve.Type);
 
@@ -489,10 +493,7 @@ namespace BoDi
             if (ctors.Length == 0)
                 ctors = type.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
 
-            if (ctors.Length == 0)
-            {
-                throw new ObjectContainerException("Class must have a constructor! " + type.FullName, resolutionPath);
-            }
+            Debug.Assert(ctors.Length > 0, "Class must have a constructor!");
 
             int maxParamCount = ctors.Max(ctor => ctor.GetParameters().Length);
             var maxParamCountCtors = ctors.Where(ctor => ctor.GetParameters().Length == maxParamCount).ToArray();
