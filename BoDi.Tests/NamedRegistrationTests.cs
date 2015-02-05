@@ -125,6 +125,20 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldBeAbleToResolveNamedInstancesAsDictionaryEvenIfThereWasNoRegistrations()
+        {
+            var container = new ObjectContainer();
+
+            // when
+
+            var instanceDict = container.Resolve<IDictionary<string, IInterface1>>();
+
+            // then
+
+            instanceDict.Count.ShouldEqual(0);
+        }
+
+        [Test]
         public void ShouldBeAbleToResolveNamedInstancesAsEnumKeyDictionary()
         {
             var container = new ObjectContainer();
@@ -141,6 +155,16 @@ namespace BoDi.Tests
             instanceDict.Keys.ShouldContain(MyEnumKey.Two);
             instanceDict[MyEnumKey.One].ShouldBeType<VerySimpleClass>();
             instanceDict[MyEnumKey.Two].ShouldBeType<SimpleClassWithDefaultCtor>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException))]
+        public void ShouldNotBeAbleToResolveNamedInstancesDictionaryOtherThanStringAndEnumKey()
+        {
+            var container = new ObjectContainer();
+
+            // when
+
+            var instanceDict = container.Resolve<IDictionary<int, IInterface1>>();
         }
 
         [Test]

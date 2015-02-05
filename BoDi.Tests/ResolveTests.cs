@@ -297,5 +297,28 @@ namespace BoDi.Tests
             container.Resolve<string>();
         }
 
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]
+        public void ShouldThrowExceptionForCircuarDepenencies()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.Resolve<ClassWithCircularDependency1>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Multiple public constructors", MatchType = MessageMatch.Contains)]
+        public void ShouldThrowExceptionForMultipleConstructorsWithSameNumberOfMaximumParameters()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.Resolve<ClassWithTwoConstructorSameParamCount>();
+        }
     }
 }

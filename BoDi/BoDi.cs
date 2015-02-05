@@ -160,7 +160,7 @@ namespace BoDi
 
             bool Equals(RegistrationKey other)
             {
-                return Equals(other.Type, Type) && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
+                return other.Type == Type && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
             }
 
             public override bool Equals(object obj)
@@ -185,24 +185,24 @@ namespace BoDi
 
         private class TypeRegistration : IRegistration
         {
-            readonly Type ImplementationType;
+            private readonly Type implementationType;
 
             public TypeRegistration(Type implementationType)
             {
-                ImplementationType = implementationType;
+                this.implementationType = implementationType;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
             {
-                var pooledObjectKey = new RegistrationKey(ImplementationType, keyToResolve.Name);
+                var pooledObjectKey = new RegistrationKey(implementationType, keyToResolve.Name);
                 object obj = container.GetPooledObject(pooledObjectKey);
 
                 if (obj == null)
                 {
-                    if (ImplementationType.IsInterface)
+                    if (implementationType.IsInterface)
                         throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
 
-                    obj = container.CreateObject(ImplementationType, resolutionPath, keyToResolve);
+                    obj = container.CreateObject(implementationType, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
                 }
 
@@ -211,27 +211,27 @@ namespace BoDi
 
             public override string ToString()
             {
-                return "Type: " + ImplementationType.FullName;
+                return "Type: " + implementationType.FullName;
             }
         }
 
         private class InstanceRegistration : IRegistration
         {
-            readonly object Instance;
+            private readonly object instance;
 
             public InstanceRegistration(object instance)
             {
-                Instance = instance;
+                this.instance = instance;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
             {
-                return Instance;
+                return instance;
             }
 
             public override string ToString()
             {
-                return "Instance: " + Instance;
+                return "Instance: " + instance;
             }
         }
 
@@ -275,17 +275,13 @@ namespace BoDi
         private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
-        public ObjectContainer()
-        {
-            RegisterInstanceAs<IObjectContainer>(this);
-        }
-
-        public ObjectContainer(IObjectContainer baseContainer) : this()
+        public ObjectContainer(IObjectContainer baseContainer = null) 
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))
                 throw new ArgumentException("Base container must be an ObjectContainer", "baseContainer");
 
             this.baseContainer = (ObjectContainer)baseContainer;
+            RegisterInstanceAs<IObjectContainer>(this);
         }
 
         #region Registration
@@ -421,7 +417,7 @@ namespace BoDi
             object resolvedObject;
             if (!resolvedObjects.TryGetValue(keyToResolve, out resolvedObject))
             {
-                resolvedObject = CreateObjectFor(keyToResolve, resolutionPath);
+                resolvedObject = ResolveObject(keyToResolve, resolutionPath);
                 resolvedObjects.Add(keyToResolve, resolvedObject);
             }
             Debug.Assert(typeToResolve.IsInstanceOfType(resolvedObject));
@@ -445,6 +441,7 @@ namespace BoDi
                 return GetRegistrationResult(CreateNamedInstanceDictionaryKey(targetType));
             }
 
+            // if there was no named ragistration, we still return an empty dictionary
             if(IsNamedInstanceDictionaryKey(keyToResolve))
             {
                 return new NamedInstanceDictionaryRegistration();
@@ -476,7 +473,7 @@ namespace BoDi
             return null;
         }
 
-        private object CreateObjectFor(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+        private object ResolveObject(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
         {
             if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string))
                 throw new ObjectContainerException("Primitive types cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);

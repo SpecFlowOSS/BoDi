@@ -162,4 +162,33 @@ namespace BoDi.Tests
         One,
         Two
     }
+
+    public class ClassWithCircularDependency1
+    {
+        public ClassWithCircularDependency1(ClassWithCircularDependency2 dep2)
+        {
+            
+        }
+    }
+
+    public class ClassWithCircularDependency2
+    {
+        public ClassWithCircularDependency2(ClassWithCircularDependency1 dep1)
+        {
+            
+        }
+    }
+
+    public class ClassWithTwoConstructorSameParamCount
+    {
+        public ClassWithTwoConstructorSameParamCount(string a, int b)
+        {
+            
+        }
+
+        public ClassWithTwoConstructorSameParamCount(int a, string b)
+        {
+            
+        }
+    }
 }
