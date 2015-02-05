@@ -13,6 +13,15 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
  * DEALINGS IN THE SOFTWARE.
  * 
+ * Changelog
+ * 
+ * v1.2
+ *   - should not allow resolving value types (structs)
+ *   - should list registrations in container ToString()
+ *   - smaller code refactring
+ * 
+ * v1.1 - released with SpecFlow v1.9.0
+ * 
  */
 using System;
 using System.Collections;
