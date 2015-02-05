@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{EC40ACB0-A6B9-4776-9078-B1D72D244787}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>BoDi.NuGetPackages</RootNamespace>
+    <AssemblyName>BoDi.NuGetPackages</AssemblyName>
+    <FileAlignment>512</FileAlignment>
+    <NuGetPackageImportStamp>6b37ec61</NuGetPackageImportStamp>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include=".build\build.props" />
+    <Compile Include=".build\build.targets" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="BoDi.Embedded\BoDi.Embedded.nuspec" />
+    <None Include="BoDi.Embedded\BoDi.Embedded.nuspec.props" />
+    <None Include="BoDi\BoDi.nuspec" />
+    <None Include="BoDi\BoDi.nuspec.props" />
+    <None Include="packages.config" />
+    <None Include="Properties\build.props" />
+    <None Include="Properties\MSBNuget.props" />
+  </ItemGroup>
+  <Import Condition="Exists('$(MSBuildProjectDirectory)\.build\build.props')" Project="$(MSBuildProjectDirectory)\.build\build.props" />
+  <Import Condition="Exists('$(MSBuildProjectDirectory)\.build\build.targets')" Project="$(MSBuildProjectDirectory)\.build\build.targets" />
+  <Import Project="..\packages\MSBuild.MSBBuildConvention.2.0.0\build\MSBuild.MSBBuildConvention.targets" Condition="Exists('..\packages\MSBuild.MSBBuildConvention.2.0.0\build\MSBuild.MSBBuildConvention.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\MSBuild.MSBBuildConvention.2.0.0\build\MSBuild.MSBBuildConvention.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.MSBBuildConvention.2.0.0\build\MSBuild.MSBBuildConvention.targets'))" />
+    <Error Condition="!Exists('..\packages\MSBuild.MSBNuget.1.1.2-pre02\build\MSBuild.MSBNuget.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.MSBNuget.1.1.2-pre02\build\MSBuild.MSBNuget.targets'))" />
+  </Target>
+  <Import Project="..\packages\MSBuild.MSBNuget.1.1.2-pre02\build\MSBuild.MSBNuget.targets" Condition="Exists('..\packages\MSBuild.MSBNuget.1.1.2-pre02\build\MSBuild.MSBNuget.targets')" />
+</Project>

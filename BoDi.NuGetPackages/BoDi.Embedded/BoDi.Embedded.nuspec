@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <metadata xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <id>BoDi.Embedded</id>
+    <version>1.2.0-alpha1</version>
+    <title>BoDi - Simple IoC Container (embedded as source)</title>
+    <authors>Gaspar Nagy</authors>
+    <owners>Gaspar Nagy</owners>
+    <summary>A very simple IoC container, easily embeddable also as a source code.</summary>
+    <description>A very simple IoC container, easily embeddable also as a source code.</description>
+    <releaseNotes>Minor changes, see https://github.com/gasparnagy/BoDi/blob/master/BoDi/BoDi.cs for detailed history.</releaseNotes>
+    <language>en-US</language>
+    <projectUrl>https://github.com/gasparnagy/BoDi</projectUrl>
+    <!--<iconUrl>TODO</iconUrl>-->
+    <licenseUrl>https://github.com/gasparnagy/BoDi/raw/master/LICENSE.txt</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <copyright>Copyright (C) 2010-2015, Gaspar Nagy (http://gasparnagy.com)</copyright>
+    <tags>dependency injection, embeddable</tags>
+    <frameworkAssemblies>
+      <frameworkAssembly assemblyName="System.Configuration" />
+    </frameworkAssemblies>
+  </metadata>
+</package>
