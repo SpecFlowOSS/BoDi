@@ -19,6 +19,7 @@
  *   - should not allow resolving value types (structs)
  *   - should list registrations in container ToString()
  *   - should not dispose registered instances by default, disposal can be requested by the 'dispose: true' parameter
+ *   - should be able to disable configuration file support (and the dependency on System.Configuration) with BODI_DISABLECONFIGFILESUPPORT compilation symbol
  *   - smaller code refactoring
  *   - improve resolution path handling
  * 
@@ -452,7 +453,7 @@ namespace BoDi
             registrations.Remove(registrationKey);
         }
 
-#if !BODI_LIMITEDRUNTIME
+#if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
         public void RegisterFromConfiguration()
         {
             var section = (BoDiConfigurationSection)ConfigurationManager.GetSection("boDi");
@@ -672,7 +673,7 @@ namespace BoDi
     }
 
     #region Configuration handling
-#if !BODI_LIMITEDRUNTIME
+#if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
 
     public class BoDiConfigurationSection : ConfigurationSection
     {

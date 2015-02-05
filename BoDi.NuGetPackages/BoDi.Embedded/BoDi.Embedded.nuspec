@@ -7,7 +7,7 @@
     <authors>Gaspar Nagy</authors>
     <owners>Gaspar Nagy</owners>
     <summary>A very simple IoC container, easily embeddable also as a source code.</summary>
-    <description>A very simple IoC container, easily embeddable also as a source code.</description>
+    <description>A very simple IoC container, easily embeddable also as a source code. You can make it even more simpler by defining the BODI_DISABLECONFIGFILESUPPORT compilation symbol in your project.</description>
     <releaseNotes>Minor changes, see https://github.com/gasparnagy/BoDi/blob/master/BoDi/BoDi.cs for detailed history.</releaseNotes>
     <language>en-US</language>
     <projectUrl>https://github.com/gasparnagy/BoDi</projectUrl>
