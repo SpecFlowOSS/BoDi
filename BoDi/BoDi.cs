@@ -20,6 +20,7 @@
  *   - should list registrations in container ToString()
  *   - should not dispose registered instances by default, disposal can be requested by the 'dispose: true' parameter
  *   - smaller code refactoring
+ *   - improve resolution path handling
  * 
  * v1.1 - released with SpecFlow v1.9.0
  * 
@@ -27,7 +28,6 @@
 using System;
 using System.Collections;
 using System.Configuration;
-using System.Globalization;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -55,10 +55,14 @@ namespace BoDi
 
         static private string GetMessage(string message, IEnumerable<Type> resolutionPath)
         {
-            if (resolutionPath == null || !resolutionPath.Any())
+            if (resolutionPath == null)
                 return message;
 
-            return string.Format("{0} (resolution path: {1})", message, string.Join("->", resolutionPath.Select(t => t.FullName).ToArray()));
+            var resolutionPathArray = resolutionPath.ToArray();
+            if (resolutionPathArray.Length == 0)
+                return message;
+
+            return string.Format("{0} (resolution path: {1})", message, string.Join("->", resolutionPathArray.Select(t => t.FullName).ToArray()));
         }
     }
 
@@ -148,6 +152,62 @@ namespace BoDi
     {
         private const string REGISTERED_NAME_PARAMETER_NAME = "registeredName";
 
+        /// <summary>
+        /// A very simple immutable linked list of <see cref="Type"/>.
+        /// </summary>
+        private class ResolutionList : IEnumerable<Type>
+        {
+            private readonly Type type;
+            private readonly ResolutionList nextNode;
+            private bool IsLast { get { return type == null; } }
+
+            public ResolutionList()
+            {
+                Debug.Assert(IsLast);
+            }
+
+            private ResolutionList(Type type, ResolutionList nextNode)
+            {
+                if (type == null) throw new ArgumentNullException("type");
+                if (nextNode == null) throw new ArgumentNullException("nextNode");
+
+                this.type = type;
+                this.nextNode = nextNode;
+            }
+
+            public ResolutionList AddToEnd(Type resolvedType)
+            {
+                if (resolvedType == null) throw new ArgumentNullException("resolvedType");
+                return new ResolutionList(resolvedType, this);
+            }
+
+            public bool Contains(Type resolvedType)
+            {
+                if (resolvedType == null) throw new ArgumentNullException("resolvedType");
+                return GetReverseEnumerable().Contains(resolvedType);
+            }
+
+            private IEnumerable<Type> GetReverseEnumerable()
+            {
+                var node = this;
+                while (!node.IsLast)
+                {
+                    yield return node.type;
+                    node = node.nextNode;
+                }
+            }
+
+            public IEnumerator<Type> GetEnumerator()
+            {
+                return GetReverseEnumerable().Reverse().GetEnumerator();
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
         private struct RegistrationKey
         {
             public readonly Type Type;
@@ -192,7 +252,7 @@ namespace BoDi
         }
         private interface IRegistration
         {
-            object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath);
+            object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
         }
 
         private class TypeRegistration : IRegistration
@@ -204,7 +264,7 @@ namespace BoDi
                 this.implementationType = implementationType;
             }
 
-            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var pooledObjectKey = new RegistrationKey(implementationType, keyToResolve.Name);
                 object obj = container.GetPooledObject(pooledObjectKey);
@@ -236,7 +296,7 @@ namespace BoDi
                 this.instance = instance;
             }
 
-            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 return instance;
             }
@@ -269,7 +329,7 @@ namespace BoDi
 
         private class NamedInstanceDictionaryRegistration : IRegistration
         {
-            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToResolve = keyToResolve.Type;
                 Debug.Assert(typeToResolve.IsGenericType && typeToResolve.GetGenericTypeDefinition() == typeof(IDictionary<,>));
@@ -380,6 +440,7 @@ namespace BoDi
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
 
+        // ReSharper disable once UnusedParameter.Local
         private void AssertNotResolved(RegistrationKey interfaceType)
         {
             if (resolvedObjects.ContainsKey(interfaceType))
@@ -441,10 +502,10 @@ namespace BoDi
 
         public object Resolve(Type typeToResolve, string name = null)
         {
-            return Resolve(typeToResolve, Enumerable.Empty<Type>(), name);
+            return Resolve(typeToResolve, new ResolutionList(), name);
         }
 
-        private object Resolve(Type typeToResolve, IEnumerable<Type> resolutionPath, string name)
+        private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
         {
             AssertNotDisposed();
 
@@ -526,7 +587,7 @@ namespace BoDi
             return true;
         }
 
-        private object ResolveObject(RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+        private object ResolveObject(RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
             if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string) || keyToResolve.Type.IsValueType)
                 throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);
@@ -536,7 +597,7 @@ namespace BoDi
             return registrationResult.Resolve(this, keyToResolve, resolutionPath);
         }
 
-        private object CreateObject(Type type, IEnumerable<Type> resolutionPath, RegistrationKey keyToResolve)
+        private object CreateObject(Type type, ResolutionList resolutionPath, RegistrationKey keyToResolve)
         {
             var ctors = type.GetConstructors();
             if (ctors.Length == 0)
@@ -554,7 +615,7 @@ namespace BoDi
                 if (resolutionPath.Contains(type))
                     throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath);
 
-                var args = ResolveArguments(ctor.GetParameters(), keyToResolve, resolutionPath.Concat(new[] { type }));
+                var args = ResolveArguments(ctor.GetParameters(), keyToResolve, resolutionPath.AddToEnd(type));
                 obj = ctor.Invoke(args);
             }
             else
@@ -565,7 +626,7 @@ namespace BoDi
             return obj;
         }
 
-        private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, IEnumerable<Type> resolutionPath)
+        private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
             return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : Resolve(p.ParameterType, resolutionPath, null)).ToArray();
         }
