@@ -318,6 +318,37 @@ namespace BoDi
             }
         }
 
+        private class FactoryRegistration : IRegistration
+        {
+            private readonly Delegate factoryDelegate;
+
+            public FactoryRegistration(Delegate factoryDelegate)
+            {
+                this.factoryDelegate = factoryDelegate;
+            }
+
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            {
+                var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                return obj;
+                
+                //object obj;
+                ////var pooledObjectKey = new RegistrationKey(implementationType, keyToResolve.Name);
+                ////object obj = container.GetPooledObject(pooledObjectKey);
+
+                //if (obj == null)
+                //{
+                //    //if (implementationType.IsInterface)
+                //    //    throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
+
+                //    obj = container.CreateObject(implementationType, resolutionPath, keyToResolve);
+                //    container.objectPool.Add(pooledObjectKey, obj);
+                //}
+
+                //return obj;
+            }
+        }
+
         private class NonDisposableWrapper
         {
             public object Object { get; private set; }
@@ -440,6 +471,35 @@ namespace BoDi
         {
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
+
+        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
+        {
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+        }
+
+        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null)
+        {
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+        }
+
+        public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null)
+        {
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+        }
+
+        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
+        {
+            if (factoryDelegate == null) throw new ArgumentNullException("factoryDelegate");
+            if (interfaceType == null) throw new ArgumentNullException("interfaceType");
+
+            var registrationKey = new RegistrationKey(interfaceType, name);
+            AssertNotResolved(registrationKey);
+
+            ClearRegistrations(registrationKey);
+
+            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate));
+        }
+
 
         // ReSharper disable once UnusedParameter.Local
         private void AssertNotResolved(RegistrationKey interfaceType)
@@ -625,6 +685,12 @@ namespace BoDi
             }
 
             return obj;
+        }
+
+        private object InvokeFactoryDelegate(Delegate factoryDelegate, ResolutionList resolutionPath, RegistrationKey keyToResolve)
+        {
+            var args = ResolveArguments(factoryDelegate.Method.GetParameters(), keyToResolve, resolutionPath/*.AddToEnd(type)*/);
+            return factoryDelegate.DynamicInvoke(args);
         }
 
         private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
