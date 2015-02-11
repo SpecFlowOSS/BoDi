@@ -189,7 +189,7 @@ namespace BoDi.Tests
         Two
     }
 
-    public class ClassWithCircularDependency1
+    public class ClassWithCircularDependency1 
     {
         public ClassWithCircularDependency1(ClassWithCircularDependency2 dep2)
         {
@@ -197,9 +197,25 @@ namespace BoDi.Tests
         }
     }
 
-    public class ClassWithCircularDependency2
+    public class ClassWithCircularDependency2 
     {
         public ClassWithCircularDependency2(ClassWithCircularDependency1 dep1)
+        {
+            
+        }
+    }
+
+    public class ClassWithCircularDependencyThroughInterfaces1 : IInterface1
+    {
+        public ClassWithCircularDependencyThroughInterfaces1(IInterface2 dep2)
+        {
+            
+        }
+    }
+
+    public class ClassWithCircularDependencyThroughInterfaces2 : IInterface2
+    {
+        public ClassWithCircularDependencyThroughInterfaces2(IInterface1 dep1)
         {
             
         }
