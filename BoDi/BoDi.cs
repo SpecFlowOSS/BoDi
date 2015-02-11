@@ -42,7 +42,7 @@ namespace BoDi
 #endif
     public class ObjectContainerException : Exception
     {
-        public ObjectContainerException(string message, IEnumerable<Type> resolutionPath) : base(GetMessage(message, resolutionPath))
+        public ObjectContainerException(string message, Type[] resolutionPath) : base(GetMessage(message, resolutionPath))
         {
         }
 
@@ -54,16 +54,12 @@ namespace BoDi
         }
 #endif
 
-        static private string GetMessage(string message, IEnumerable<Type> resolutionPath)
+        static private string GetMessage(string message, Type[] resolutionPath)
         {
-            if (resolutionPath == null)
+            if (resolutionPath == null || resolutionPath.Length == 0)
                 return message;
 
-            var resolutionPathArray = resolutionPath.ToArray();
-            if (resolutionPathArray.Length == 0)
-                return message;
-
-            return string.Format("{0} (resolution path: {1})", message, string.Join("->", resolutionPathArray.Select(t => t.FullName).ToArray()));
+            return string.Format("{0} (resolution path: {1})", message, string.Join("->", resolutionPath.Select(t => t.FullName).ToArray()));
         }
     }
 
@@ -163,56 +159,56 @@ namespace BoDi
         /// <summary>
         /// A very simple immutable linked list of <see cref="Type"/>.
         /// </summary>
-        private class ResolutionList : IEnumerable<Type>
+        private class ResolutionList
         {
-            private readonly Type type;
+            private readonly RegistrationKey currentRegistrationKey;
+            private readonly Type currentResolvedType;
             private readonly ResolutionList nextNode;
-            private bool IsLast { get { return type == null; } }
+            private bool IsLast { get { return nextNode == null; } }
 
             public ResolutionList()
             {
                 Debug.Assert(IsLast);
             }
 
-            private ResolutionList(Type type, ResolutionList nextNode)
+            private ResolutionList(RegistrationKey currentRegistrationKey, Type currentResolvedType, ResolutionList nextNode)
             {
-                if (type == null) throw new ArgumentNullException("type");
                 if (nextNode == null) throw new ArgumentNullException("nextNode");
 
-                this.type = type;
+                this.currentRegistrationKey = currentRegistrationKey;
+                this.currentResolvedType = currentResolvedType;
                 this.nextNode = nextNode;
             }
 
-            public ResolutionList AddToEnd(Type resolvedType)
+            public ResolutionList AddToEnd(RegistrationKey registrationKey, Type resolvedType)
             {
-                if (resolvedType == null) throw new ArgumentNullException("resolvedType");
-                return new ResolutionList(resolvedType, this);
+                return new ResolutionList(registrationKey, resolvedType, this);
             }
 
             public bool Contains(Type resolvedType)
             {
                 if (resolvedType == null) throw new ArgumentNullException("resolvedType");
-                return GetReverseEnumerable().Contains(resolvedType);
+                return GetReverseEnumerable().Any(i => i.Value == resolvedType);
             }
 
-            private IEnumerable<Type> GetReverseEnumerable()
+            public bool Contains(RegistrationKey registrationKey)
+            {
+                return GetReverseEnumerable().Any(i => i.Key.Equals(registrationKey));
+            }
+
+            private IEnumerable<KeyValuePair<RegistrationKey, Type>> GetReverseEnumerable()
             {
                 var node = this;
                 while (!node.IsLast)
                 {
-                    yield return node.type;
+                    yield return new KeyValuePair<RegistrationKey, Type>(node.currentRegistrationKey, node.currentResolvedType);
                     node = node.nextNode;
                 }
             }
 
-            public IEnumerator<Type> GetEnumerator()
+            public Type[] ToTypeList()
             {
-                return GetReverseEnumerable().Reverse().GetEnumerator();
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
+                return GetReverseEnumerable().Select(i => i.Value ?? i.Key.Type).Reverse().ToArray();
             }
         }
 
@@ -258,6 +254,9 @@ namespace BoDi
                 }
             }
         }
+
+        #region Registration types
+
         private interface IRegistration
         {
             object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
@@ -280,7 +279,7 @@ namespace BoDi
                 if (obj == null)
                 {
                     if (implementationType.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
+                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
 
                     obj = container.CreateObject(implementationType, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
@@ -336,23 +335,9 @@ namespace BoDi
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
+                //TODO: store result object in pool?
                 var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
                 return obj;
-                
-                //object obj;
-                ////var pooledObjectKey = new RegistrationKey(implementationType, keyToResolve.Name);
-                ////object obj = container.GetPooledObject(pooledObjectKey);
-
-                //if (obj == null)
-                //{
-                //    //if (implementationType.IsInterface)
-                //    //    throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
-
-                //    obj = container.CreateObject(implementationType, resolutionPath, keyToResolve);
-                //    container.objectPool.Add(pooledObjectKey, obj);
-                //}
-
-                //return obj;
             }
         }
 
@@ -397,6 +382,8 @@ namespace BoDi
                 return name;
             }
         }
+
+        #endregion
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
@@ -665,7 +652,7 @@ namespace BoDi
         private object ResolveObject(RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
             if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string) || keyToResolve.Type.IsValueType)
-                throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath);
+                throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath.ToTypeList());
 
             var registrationResult = GetRegistrationResult(keyToResolve) ?? new TypeRegistration(keyToResolve.Type);
 
@@ -687,15 +674,15 @@ namespace BoDi
             if (maxParamCountCtors.Length == 1)
             {
                 ConstructorInfo ctor = maxParamCountCtors[0];
-                if (resolutionPath.Contains(type))
-                    throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath);
+                if (resolutionPath.Contains(keyToResolve))
+                    throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath.ToTypeList());
 
-                var args = ResolveArguments(ctor.GetParameters(), keyToResolve, resolutionPath.AddToEnd(type));
+                var args = ResolveArguments(ctor.GetParameters(), keyToResolve, resolutionPath.AddToEnd(keyToResolve, type));
                 obj = ctor.Invoke(args);
             }
             else
             {
-                throw new ObjectContainerException("Multiple public constructors with same maximum parameter count are not supported! " + type.FullName, resolutionPath);
+                throw new ObjectContainerException("Multiple public constructors with same maximum parameter count are not supported! " + type.FullName, resolutionPath.ToTypeList());
             }
 
             return obj;
@@ -703,7 +690,10 @@ namespace BoDi
 
         private object InvokeFactoryDelegate(Delegate factoryDelegate, ResolutionList resolutionPath, RegistrationKey keyToResolve)
         {
-            var args = ResolveArguments(factoryDelegate.Method.GetParameters(), keyToResolve, resolutionPath/*.AddToEnd(type)*/);
+            if (resolutionPath.Contains(keyToResolve))
+                throw new ObjectContainerException("Circular dependency found! " + factoryDelegate.ToString(), resolutionPath.ToTypeList());
+
+            var args = ResolveArguments(factoryDelegate.Method.GetParameters(), keyToResolve, resolutionPath.AddToEnd(keyToResolve, null));
             return factoryDelegate.DynamicInvoke(args);
         }
 

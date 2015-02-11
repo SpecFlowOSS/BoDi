@@ -84,5 +84,45 @@ namespace BoDi.Tests
             Assert.AreSame(dependency, ((ClassWithSimpleDependency)obj).Dependency);
         }
 
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]
+        [Ignore("dynamic circles not detected yet, this leads to stack overflow")]
+        public void ShouldThrowExceptionForDynamicCircuarDepenencies()
+        {
+            // given
+
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<ClassWithCircularDependency1>(c => new ClassWithCircularDependency1(c.Resolve<ClassWithCircularDependency2>()));
+
+            // when 
+
+            container.Resolve<ClassWithCircularDependency1>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]
+        public void ShouldThrowExceptionForStaticCircuarDepenencies()
+        {
+            // given
+
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<ClassWithCircularDependency1>(new Func<ClassWithCircularDependency2, ClassWithCircularDependency1>(dep1 => new ClassWithCircularDependency1(dep1)));
+
+            // when 
+
+            container.Resolve<ClassWithCircularDependency1>();
+        }
+
+        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]
+        public void ShouldThrowExceptionForStaticCircuarDepenenciesWithMultipleFactoriesInPath()
+        {
+            // given
+
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<ClassWithCircularDependency1>(new Func<ClassWithCircularDependency2, ClassWithCircularDependency1>(dep2 => new ClassWithCircularDependency1(dep2)));
+            container.RegisterFactoryAs<ClassWithCircularDependency2>(new Func<ClassWithCircularDependency1, ClassWithCircularDependency2>(dep1 => new ClassWithCircularDependency2(dep1)));
+
+            // when 
+
+            container.Resolve<ClassWithCircularDependency1>();
+        }
     }
 }

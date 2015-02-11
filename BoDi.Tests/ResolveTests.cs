@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using NUnit.Framework;
+using Should;
 
 namespace BoDi.Tests
 {
@@ -341,6 +342,26 @@ namespace BoDi.Tests
             // when 
 
             container.Resolve<ClassWithCircularDependency1>();
+        }
+
+        [Test]
+        public void ShouldBeAbleToResolveStaticCirclesWhenNamedRegistrationsAreUsed()
+        {
+            // given
+
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<ClassWithCircularDependencyThroughInterfaces1, IInterface1>("a_name");
+            container.RegisterTypeAs<ClassWithCircularDependencyThroughInterfaces2, IInterface2>();
+            container.RegisterTypeAs<VerySimpleClass, IInterface1>();
+
+            // when 
+
+            var result = container.Resolve<IInterface1>("a_name");
+
+            // then
+
+            result.ShouldNotBeNull();
+            result.ShouldBeType<ClassWithCircularDependencyThroughInterfaces1>();
         }
 
         [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Multiple public constructors", MatchType = MessageMatch.Contains)]
