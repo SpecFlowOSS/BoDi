@@ -25,10 +25,25 @@ namespace BoDi.Tests
 
     }
 
+    public interface IGenericInterface<T>
+    {
+    }
+
     /// <summary>
     /// A very simple class without dependencies and ctor
     /// </summary>
     public class VerySimpleClass : IInterface1
+    {
+    }
+
+    /// <summary>
+    /// A simple generic class without dependencies and ctor
+    /// </summary>
+    public class SimpleGenericClass<T> : IGenericInterface<T>
+    {
+    }
+
+    public class SimpleClassExtendingGenericInterface : IGenericInterface<VerySimpleClass>
     {
     }
 

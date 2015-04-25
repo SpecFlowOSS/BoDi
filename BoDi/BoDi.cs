@@ -222,6 +222,16 @@ namespace BoDi
                 Name = name;
             }
 
+            private Type TypeGroup
+            {
+                get
+                {
+                    if (Type.IsGenericType && !Type.IsGenericTypeDefinition)
+                        return Type.GetGenericTypeDefinition();
+                    return Type;
+                }
+            }
+
             public override string ToString()
             {
                 Debug.Assert(Type.FullName != null);
@@ -233,7 +243,7 @@ namespace BoDi
 
             bool Equals(RegistrationKey other)
             {
-                return other.Type == Type && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
+                return other.TypeGroup == TypeGroup && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
             }
 
             public override bool Equals(object obj)
@@ -247,7 +257,7 @@ namespace BoDi
             {
                 unchecked
                 {
-                    return Type.GetHashCode();
+                    return TypeGroup.GetHashCode();
                 }
             }
         }
@@ -267,19 +277,32 @@ namespace BoDi
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var pooledObjectKey = new RegistrationKey(implementationType, keyToResolve.Name);
+                var typeToConstruct = GetTypeToConstruct(keyToResolve);
+
+                var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
                 object obj = container.GetPooledObject(pooledObjectKey);
 
                 if (obj == null)
                 {
-                    if (implementationType.IsInterface)
+                    if (typeToConstruct.IsInterface)
                         throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath);
 
-                    obj = container.CreateObject(implementationType, resolutionPath, keyToResolve);
+                    obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
                 }
 
                 return obj;
+            }
+
+            private Type GetTypeToConstruct(RegistrationKey keyToResolve)
+            {
+                var targetType = implementationType;
+                if (targetType.IsGenericTypeDefinition)
+                {
+                    var typeArgs = keyToResolve.Type.GetGenericArguments();
+                    targetType = targetType.MakeGenericType(typeArgs);
+                }
+                return targetType;
             }
 
             public override string ToString()
@@ -388,6 +411,27 @@ namespace BoDi
             Type interfaceType = typeof(TInterface);
             Type implementationType = typeof(TType);
             RegisterTypeAs(implementationType, interfaceType, name);
+        }
+
+        public void RegisterTypeAs(Type implementationType, Type interfaceType)
+        {
+            if(!IsValidTypeMapping(implementationType, interfaceType))
+                throw new InvalidOperationException("type mapping is not valid");
+            RegisterTypeAs(implementationType, interfaceType, null);
+        }
+
+        private bool IsValidTypeMapping(Type implementationType, Type interfaceType)
+        {
+            if (interfaceType.IsAssignableFrom(implementationType))
+                return true;
+
+            if (interfaceType.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition)
+            {
+                var baseTypes = implementationType.GetBaseTypes().ToArray();
+                return baseTypes.Any(t => t.IsGenericType && t.GetGenericTypeDefinition() == interfaceType);
+            }
+
+            return false;
         }
 
         private RegistrationKey CreateNamedInstanceDictionaryKey(Type targetType)
@@ -739,4 +783,17 @@ namespace BoDi
 
 #endif
     #endregion
+
+    internal static class TypeHelper
+    {
+        public static IEnumerable<Type> GetBaseTypes(this Type type)
+        {
+            if (type.BaseType == null) return type.GetInterfaces();
+
+            return Enumerable.Repeat(type.BaseType, 1)
+                             .Concat(type.GetInterfaces())
+                             .Concat(type.GetInterfaces().SelectMany<Type, Type>(GetBaseTypes))
+                             .Concat(type.BaseType.GetBaseTypes());
+        }
+    }
 }
