@@ -90,7 +90,7 @@ namespace BoDi.Tests
         }
 
         [Test]
-        public void ShouldRegisterGenericTypeDynamically()
+        public void ShouldRegisterGenericTypeDefinitions()
         {
             // given
             var container = new ObjectContainer();
