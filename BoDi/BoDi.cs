@@ -243,7 +243,8 @@ namespace BoDi
 
             bool Equals(RegistrationKey other)
             {
-                return other.TypeGroup == TypeGroup && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
+                var isInvertable = other.TypeGroup == Type || other.Type == TypeGroup || other.Type == Type;
+                return isInvertable && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
             }
 
             public override bool Equals(object obj)
