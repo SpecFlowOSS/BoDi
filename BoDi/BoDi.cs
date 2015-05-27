@@ -16,6 +16,7 @@
  * Change history
  * 
  * v1.2
+ *   - should be able to customize object creation with a container event (ObjectCreated)
  *   - should be able to register factory delegates
  *   - should be able to retrieve all named instance as a list with container.ResolveAll<T>()
  *   - should not allow resolving value types (structs)
@@ -67,6 +68,11 @@ namespace BoDi
 
     public interface IObjectContainer: IDisposable
     {
+        /// <summary>
+        /// Fired when a new object is created directly by the container. It is not invoked for resolving instance and factory registrations.
+        /// </summary>
+        event Action<object> ObjectCreated;
+
         /// <summary>
         /// Registers a type as the desired implementation type of an interface.
         /// </summary>
@@ -393,6 +399,8 @@ namespace BoDi
         private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
+        public event Action<object> ObjectCreated;
+
         public ObjectContainer(IObjectContainer baseContainer = null) 
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))
@@ -687,7 +695,16 @@ namespace BoDi
                 throw new ObjectContainerException("Multiple public constructors with same maximum parameter count are not supported! " + type.FullName, resolutionPath.ToTypeList());
             }
 
+            OnObjectCreated(obj);
+
             return obj;
+        }
+
+        protected virtual void OnObjectCreated(object obj)
+        {
+            var eventHandler = ObjectCreated;
+            if (eventHandler != null)
+                eventHandler(obj);
         }
 
         private object InvokeFactoryDelegate(Delegate factoryDelegate, ResolutionList resolutionPath, RegistrationKey keyToResolve)

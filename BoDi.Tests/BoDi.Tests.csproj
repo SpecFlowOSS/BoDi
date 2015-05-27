@@ -64,6 +64,7 @@
     <Compile Include="ContainerTests.cs" />
     <Compile Include="DisposeTests.cs" />
     <Compile Include="NamedRegistrationTests.cs" />
+    <Compile Include="ObjectCreationTests.cs" />
     <Compile Include="RegisterFactoryDelegateTests.cs" />
     <Compile Include="RegisterFromConfigTests.cs" />
     <Compile Include="RegisterInstanceTests.cs" />
