@@ -16,6 +16,8 @@
  * Change history
  * 
  * v1.2
+ *   - should be able to register factory delegates
+ *   - should be able to retrieve all named instance as a list with container.ResolveAll<T>()
  *   - should not allow resolving value types (structs)
  *   - should list registrations in container ToString()
  *   - should not dispose registered instances by default, disposal can be requested by the 'dispose: true' parameter
