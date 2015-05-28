@@ -219,6 +219,11 @@ namespace BoDi
             {
                 return GetReverseEnumerable().Select(i => i.Value ?? i.Key.Type).Reverse().ToArray();
             }
+
+            public override string ToString()
+            {
+                return string.Join(",", GetReverseEnumerable().Select(n => string.Format("{0}:{1}", n.Key, n.Value)));
+            }
         }
 
         private struct RegistrationKey
