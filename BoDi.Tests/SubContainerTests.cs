@@ -11,7 +11,7 @@ namespace BoDi.Tests
     public class SubContainerTests
     {
         [Test]
-        public void ShouldResolveFromBaseContainer()
+        public void ShouldBeAbleToResolveFromBaseContainer()
         {
             // given
             var baseContainer = new ObjectContainer();
@@ -29,7 +29,7 @@ namespace BoDi.Tests
         }
 
         [Test]
-        public void ShouldResolveFromChildContainer()
+        public void ShouldBeAbleToResolveFromChildContainer()
         {
             // given
             var baseContainer = new ObjectContainer();
@@ -44,6 +44,22 @@ namespace BoDi.Tests
 
             Assert.IsNotNull(obj);
             Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
+        }
+
+        [Test]
+        public void ShouldResolveFromBaseContainer()
+        {
+            // given
+            var baseContainer = new ObjectContainer();
+            baseContainer.RegisterTypeAs<VerySimpleClass, IInterface1>();
+            var container = new ObjectContainer(baseContainer);
+
+            // when
+            var objFromChild = container.Resolve<IInterface1>();
+            var objFromBase = baseContainer.Resolve<IInterface1>();
+
+            // then
+            Assert.AreSame(objFromChild, objFromBase);
         }
 
         [Test]
