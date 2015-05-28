@@ -642,9 +642,6 @@ namespace BoDi
             if (GetObjectFromPool(pooledObjectKey, out obj))
                 return obj;
 
-            if (baseContainer != null)
-                return baseContainer.GetPooledObject(pooledObjectKey);
-
             return null;
         }
 

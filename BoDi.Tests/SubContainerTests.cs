@@ -90,5 +90,22 @@ namespace BoDi.Tests
 
             var container = new ObjectContainer(otherContainer.Object);
         }
+
+        [Test]
+        public void ParentObjectPoolShouldNotBeConsideredWhenReRegisteredInChild()
+        {
+            // given
+            var baseContainer = new ObjectContainer();
+            baseContainer.RegisterTypeAs<VerySimpleClass, IInterface1>();
+            var container = new ObjectContainer(baseContainer);
+            container.RegisterTypeAs<VerySimpleClass, IInterface1>();
+
+            // when
+            var objFromBase = baseContainer.Resolve<IInterface1>();
+            var objFromChild = container.Resolve<IInterface1>();
+
+            // then
+            Assert.AreNotSame(objFromChild, objFromBase);
+        }
     }
 }
