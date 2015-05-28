@@ -665,7 +665,9 @@ namespace BoDi
             var registrationResult = GetRegistrationResult(keyToResolve) ?? 
                 new KeyValuePair<ObjectContainer, IRegistration>(this, new TypeRegistration(keyToResolve.Type));
 
-            return registrationResult.Value.Resolve(registrationResult.Key, keyToResolve, resolutionPath);
+            var resolutionPathForResolve = registrationResult.Key == this ? 
+                resolutionPath : new ResolutionList();
+            return registrationResult.Value.Resolve(registrationResult.Key, keyToResolve, resolutionPathForResolve);
         }
 
         private object CreateObject(Type type, ResolutionList resolutionPath, RegistrationKey keyToResolve)

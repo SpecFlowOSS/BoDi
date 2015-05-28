@@ -107,5 +107,62 @@ namespace BoDi.Tests
             // then
             Assert.AreNotSame(objFromChild, objFromBase);
         }
+
+
+
+        public interface IParentInterface
+        {
+            IInterface1 Interface1 { get; }
+        }
+
+        private class ParentClass : IParentInterface
+        {
+            public IInterface1 Interface1 { get; set; }
+            public ParentClass(IInterface1 interface1)
+            {
+                this.Interface1 = interface1;
+            }
+        }
+
+        public interface IChildInterface
+        {
+            IInterface1 Interface1 { get; }
+        }
+
+        private class ChildClass : IChildInterface
+        {
+            public IInterface1 Interface1 { get; set; }
+            public ChildClass(IInterface1 interface1)
+            {
+                this.Interface1 = interface1;
+            }
+        }
+
+        private class DelegatingInterfce1 : IInterface1
+        {
+            public DelegatingInterfce1(IParentInterface parentInterface)
+            {
+                
+            }
+        }
+
+        [Test]
+        public void ShouldNotDetectCircularDependencyForOverriddenObjectRegistrations()
+        {
+            // given
+            var baseContainer = new ObjectContainer();
+            baseContainer.RegisterTypeAs<VerySimpleClass, IInterface1>();
+            baseContainer.RegisterTypeAs<ParentClass, IParentInterface>();
+            var container = new ObjectContainer(baseContainer);
+            container.RegisterTypeAs<DelegatingInterfce1, IInterface1>();
+            container.RegisterTypeAs<ChildClass, IChildInterface>();
+
+            // when
+            var objFromChild = container.Resolve<IChildInterface>();
+            var objFromParent = container.Resolve<IParentInterface>();
+
+            // then
+            Assert.AreNotSame(objFromChild.Interface1, objFromParent.Interface1);
+        }
     }
 }
