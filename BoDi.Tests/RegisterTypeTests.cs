@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using System;
+using NUnit.Framework;
 
 namespace BoDi.Tests
 {
@@ -86,6 +87,32 @@ namespace BoDi.Tests
             // when 
 
             container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+        }
+
+        [Test]
+        public void ShouldRegisterGenericTypeDefinitions()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterTypeAs(typeof(SimpleGenericClass<>), typeof(IGenericInterface<>));
+
+            // when
+            var obj = container.Resolve<IGenericInterface<VerySimpleClass>>();
+
+            // then
+
+            Assert.IsNotNull(obj);
+            Assert.IsInstanceOf(typeof(SimpleGenericClass<VerySimpleClass>), obj);
+        }
+
+        [Test]
+        public void ShouldNotRegisterInvalidTypeMapping()
+        {
+            // given
+            var container = new ObjectContainer();
+
+            // then
+            Assert.Catch<InvalidOperationException>(() => container.RegisterTypeAs(typeof(SimpleClassExtendingGenericInterface), typeof(IGenericInterface<>)));
         }
     }
 }
