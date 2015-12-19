@@ -470,12 +470,23 @@ namespace BoDi
 
             if (interfaceType.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition)
             {
-                var baseTypes = implementationType.GetBaseTypes().ToArray();
+                var baseTypes = GetBaseTypes(implementationType).ToArray();
                 return baseTypes.Any(t => t.IsGenericType && t.GetGenericTypeDefinition() == interfaceType);
             }
 
             return false;
         }
+
+        private static IEnumerable<Type> GetBaseTypes(Type type)
+        {
+            if (type.BaseType == null) return type.GetInterfaces();
+
+            return Enumerable.Repeat(type.BaseType, 1)
+                             .Concat(type.GetInterfaces())
+                             .Concat(type.GetInterfaces().SelectMany(GetBaseTypes))
+                             .Concat(GetBaseTypes(type.BaseType));
+        }
+
 
         private RegistrationKey CreateNamedInstanceDictionaryKey(Type targetType)
         {
@@ -880,17 +891,4 @@ namespace BoDi
 
 #endif
     #endregion
-
-    internal static class TypeHelper
-    {
-        public static IEnumerable<Type> GetBaseTypes(this Type type)
-        {
-            if (type.BaseType == null) return type.GetInterfaces();
-
-            return Enumerable.Repeat(type.BaseType, 1)
-                             .Concat(type.GetInterfaces())
-                             .Concat(type.GetInterfaces().SelectMany<Type, Type>(GetBaseTypes))
-                             .Concat(type.BaseType.GetBaseTypes());
-        }
-    }
 }
