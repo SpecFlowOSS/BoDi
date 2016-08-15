@@ -15,6 +15,10 @@
  * 
  * Change history
  * 
+ * vNext
+ *   - Expose the ObjectContainer.RegisterFactoryAs in the IObjectContainer interface (by slawomir-brzezinski-at-interxion)
+ *   - eliminate internal TypeHelper class
+ *
  * v1.2
  *   - support for mapping of generic type definitions (by ibrahimbensalah)
  *   - object should be created in the parent container, if the registration was applied there
