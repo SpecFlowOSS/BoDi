@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="ContainerTests.cs" />
     <Compile Include="DisposeTests.cs" />
+    <Compile Include="IsRegisteredTests.cs" />
     <Compile Include="NamedRegistrationTests.cs" />
     <Compile Include="ObjectCreationTests.cs" />
     <Compile Include="RegisterFactoryDelegateTests.cs" />
