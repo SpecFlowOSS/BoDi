@@ -167,6 +167,21 @@ namespace BoDi
         /// <typeparam name="T">The interface or type.</typeparam>
         /// <returns>An object implementing <typeparamref name="T"/>.</returns>
         IEnumerable<T> ResolveAll<T>() where T : class;
+
+        /// <summary>
+        /// Determines whether the interface or type is registered.
+        /// </summary>
+        /// <typeparam name="T">The interface or type.</typeparam>
+        /// <returns><c>true</c> if the interface or type is registered; otherwise <c>false</c>.</returns>
+        bool IsRegistered<T>();
+
+        /// <summary>
+        /// Determines whether the interface or type is registered with the specified name.
+        /// </summary>
+        /// <typeparam name="T">The interface or type.</typeparam>
+        /// <param name="name">The name.</param>
+        /// <returns><c>true</c> if the interface or type is registered; otherwise <c>false</c>.</returns>
+        bool IsRegistered<T>(string name);
     }
 
     public interface IContainedInstance
@@ -579,12 +594,25 @@ namespace BoDi
             AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate));
         }
 
+        public bool IsRegistered<T>()
+        {
+            return this.IsRegistered<T>(null);
+        }
+
+        public bool IsRegistered<T>(string name)
+        {
+            Type typeToResolve = typeof(T);
+
+            var keyToResolve = new RegistrationKey(typeToResolve, name);
+
+            return registrations.ContainsKey(keyToResolve);
+        }
 
         // ReSharper disable once UnusedParameter.Local
         private void AssertNotResolved(RegistrationKey interfaceType)
         {
             if (resolvedObjects.ContainsKey(interfaceType))
-                throw new ObjectContainerException("An object have been resolved for this interface already.", null);
+                throw new ObjectContainerException("An object has been resolved for this interface already.", null);
         }
 
         private void ClearRegistrations(RegistrationKey registrationKey)
