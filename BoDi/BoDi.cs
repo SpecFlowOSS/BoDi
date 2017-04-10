@@ -612,7 +612,7 @@ namespace BoDi
         private void AssertNotResolved(RegistrationKey interfaceType)
         {
             if (resolvedObjects.ContainsKey(interfaceType))
-                throw new ObjectContainerException("An object have been resolved for this interface already.", null);
+                throw new ObjectContainerException("An object has been resolved for this interface already.", null);
         }
 
         private void ClearRegistrations(RegistrationKey registrationKey)
