@@ -16,6 +16,7 @@
  * Change history
  * 
  * v1.3
+ *   - Fix: When an object resolved without registration using the concrete type it cannot be resolved from sub context
  *   - Added IsRegistered methods to check if an interface or type is already registered (#6)
  *   - Expose the ObjectContainer.RegisterFactoryAs in the IObjectContainer interface (by slawomir-brzezinski-at-interxion)
  *   - eliminate internal TypeHelper class
@@ -765,12 +766,17 @@ namespace BoDi
             if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string) || keyToResolve.Type.IsValueType)
                 throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath.ToTypeList());
 
-            var registrationResult = GetRegistrationResult(keyToResolve) ?? 
+            var registrationResult = GetRegistrationResult(keyToResolve);
+            var isImplicitTypeRegistration = registrationResult == null;
+            var registrationToUse = registrationResult ??
                 new KeyValuePair<ObjectContainer, IRegistration>(this, new TypeRegistration(keyToResolve.Type));
 
-            var resolutionPathForResolve = registrationResult.Key == this ? 
+            var resolutionPathForResolve = registrationToUse.Key == this ? 
                 resolutionPath : new ResolutionList();
-            return registrationResult.Value.Resolve(registrationResult.Key, keyToResolve, resolutionPathForResolve);
+            var result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
+            if (isImplicitTypeRegistration) // upon successful implicit registration, we register the rule, so that sub context can also get the same resolved value
+                AddRegistration(keyToResolve, registrationToUse.Value);
+            return result;
         }
 
         private object CreateObject(Type type, ResolutionList resolutionPath, RegistrationKey keyToResolve)

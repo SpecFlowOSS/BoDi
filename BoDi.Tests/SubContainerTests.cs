@@ -63,6 +63,21 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldResolveExistingObjectFromBaseWithoutTypeRegistration()
+        {
+            // given
+            var baseContainer = new ObjectContainer();
+            var container = new ObjectContainer(baseContainer);
+
+            // when
+            var objFromBase = baseContainer.Resolve<VerySimpleClass>();
+            var objFromChild = container.Resolve<VerySimpleClass>();
+
+            // then
+            Assert.AreSame(objFromChild, objFromBase);
+        }
+
+        [Test]
         public void ShouldBeAbleToOverrideBaseContainerRegistration()
         {
             // given
