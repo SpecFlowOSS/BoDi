@@ -15,7 +15,8 @@
  * 
  * Change history
  * 
- * vNext
+ * v1.3
+ *   - Added IsRegistered methods to check if an interface or type is already registered (#6)
  *   - Expose the ObjectContainer.RegisterFactoryAs in the IObjectContainer interface (by slawomir-brzezinski-at-interxion)
  *   - eliminate internal TypeHelper class
  *
