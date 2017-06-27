@@ -24,6 +24,7 @@
     <None Include="packages.config" />
     <None Include="Properties\build.props" />
     <None Include="Properties\MSBNuget.props" />
+    <None Include="release_to_local.cmd" />
   </ItemGroup>
   <Import Condition="Exists('$(MSBuildProjectDirectory)\.build\build.props')" Project="$(MSBuildProjectDirectory)\.build\build.props" />
   <Import Condition="Exists('$(MSBuildProjectDirectory)\.build\build.targets')" Project="$(MSBuildProjectDirectory)\.build\build.targets" />
