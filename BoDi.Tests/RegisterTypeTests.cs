@@ -61,7 +61,7 @@ namespace BoDi.Tests
             Assert.IsInstanceOf(typeof(SimpleClassWithDefaultCtor), obj);
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotAllowOverrideRegistrationAfterResolve()
         {
             // given
@@ -71,11 +71,10 @@ namespace BoDi.Tests
             container.Resolve<IInterface1>();
 
             // when 
-
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            Assert.Throws<ObjectContainerException>(() => container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>());
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotAllowOverrideInstanceRegistrationAfterResolve()
         {
             // given
@@ -85,8 +84,7 @@ namespace BoDi.Tests
             container.Resolve<IInterface1>();
 
             // when 
-
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>();
+            Assert.Throws<ObjectContainerException>(() =>container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>());
         }
 
         [Test]

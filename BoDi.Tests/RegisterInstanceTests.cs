@@ -9,15 +9,14 @@ namespace BoDi.Tests
     [TestFixture]
     public class RegisterInstanceTests
     {
-        [Test, ExpectedException(typeof(ArgumentNullException))]
+        [Test/*, ExpectedException(typeof(ArgumentNullException))*/]
         public void ShouldThrowArgumentExceptionWhenCalledWithNull()
         {
             // given
             var container = new ObjectContainer();
 
             // when
-
-            container.RegisterInstanceAs((IInterface1)null);
+            Assert.Throws<ArgumentNullException>(() => container.RegisterInstanceAs((IInterface1)null));
         }
 
         [Test]
@@ -60,7 +59,7 @@ namespace BoDi.Tests
             Assert.IsInstanceOf(typeof(SimpleClassWithDefaultCtor), obj);
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotAllowOverrideRegistrationAfterResolve()
         {
             // given
@@ -71,11 +70,10 @@ namespace BoDi.Tests
             var instance = new SimpleClassWithDefaultCtor();
 
             // when 
-
-            container.RegisterInstanceAs<IInterface1>(instance);
+            Assert.Throws<ObjectContainerException>( () => container.RegisterInstanceAs<IInterface1>(instance));
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotAllowOverrideInstanceRegistrationAfterResolve()
         {
             // given
@@ -86,8 +84,7 @@ namespace BoDi.Tests
             var instance = new SimpleClassWithDefaultCtor();
 
             // when 
-
-            container.RegisterInstanceAs<IInterface1>(instance);
+            Assert.Throws<ObjectContainerException>(() => container.RegisterInstanceAs<IInterface1>(instance));
         }
     }
 }

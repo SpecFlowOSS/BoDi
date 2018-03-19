@@ -27,26 +27,24 @@ namespace BoDi.Tests
             Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotBeAbleToResolveStructsWithoutCtor()
         {
             // given
             var container = new ObjectContainer();
 
             // when
-
-            container.Resolve<MyStructWithoutCtor>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<MyStructWithoutCtor>());
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test/*, ExpectedException(typeof(ObjectContainerException))*/]
         public void ShouldNotBeAbleToResolveStructsWithCtor()
         {
             // given
             var container = new ObjectContainer();
 
             // when
-
-            container.Resolve<MyStructWithDependencies>();
+            Assert.Throws<ObjectContainerException>( () => container.Resolve<MyStructWithDependencies>());
         }
 
         [Test]
@@ -136,15 +134,14 @@ namespace BoDi.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(ObjectContainerException))]
+        //[ExpectedException(typeof(ObjectContainerException))]
         public void ShouldThrowErrorIfInterfaceCannotBeResolved()
         {
             // given
             var container = new ObjectContainer();
 
             // when
-
-            container.Resolve<IInterface1>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<IInterface1>());
         }
 
         [Test]
@@ -308,7 +305,7 @@ namespace BoDi.Tests
             Assert.AreSame(container, obj);
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)]
+        [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)*/]
         public void ShouldNotBeAbleToResolveStringTypes()
         {
             // given
@@ -316,11 +313,11 @@ namespace BoDi.Tests
             var container = new ObjectContainer();
 
             // when 
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<string>(), "Primitive types or structs cannot be resolved");
 
-            container.Resolve<string>();
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)]
+        [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Primitive types or structs cannot be resolved", MatchType = MessageMatch.Contains)*/]
         public void ShouldNotBeAbleToResolvePrimitiveTypes()
         {
             // given
@@ -328,11 +325,10 @@ namespace BoDi.Tests
             var container = new ObjectContainer();
 
             // when 
-
-            container.Resolve<int>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<int>(), "Primitive types or structs cannot be resolved");
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)]
+        [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)*/]
         public void ShouldThrowExceptionForCircuarDepenencies()
         {
             // given
@@ -340,8 +336,7 @@ namespace BoDi.Tests
             var container = new ObjectContainer();
 
             // when 
-
-            container.Resolve<ClassWithCircularDependency1>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<ClassWithCircularDependency1>(), "Circular dependency");
         }
 
         [Test]
@@ -364,7 +359,7 @@ namespace BoDi.Tests
             result.ShouldBeType<ClassWithCircularDependencyThroughInterfaces1>();
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Multiple public constructors", MatchType = MessageMatch.Contains)]
+        [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Multiple public constructors", MatchType = MessageMatch.Contains)*/]
         public void ShouldThrowExceptionForMultipleConstructorsWithSameNumberOfMaximumParameters()
         {
             // given
@@ -372,8 +367,7 @@ namespace BoDi.Tests
             var container = new ObjectContainer();
 
             // when 
-
-            container.Resolve<ClassWithTwoConstructorSameParamCount>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<ClassWithTwoConstructorSameParamCount>(), "Multiple public constructors");
         }
     }
 }
