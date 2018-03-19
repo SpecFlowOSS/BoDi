@@ -7,6 +7,9 @@
     <Company>gasparnagy.com</Company>
     <Description>https://github.com/gasparnagy/bodi</Description>
     <PackageProjectUrl>https://github.com/gasparnagy/bodi</PackageProjectUrl>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>bodi.snk</AssemblyOriginatorKeyFile>
+    <DelaySign>false</DelaySign>
   </PropertyGroup>
  
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'LimitedRuntime_Debug|AnyCPU'">
