@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>BoDi.Tests</RootNamespace>
     <AssemblyName>BoDi.Tests</AssemblyName>
-    <TargetFrameworks>net45</TargetFrameworks>
+    <TargetFrameworks>net45;netcoreapp2.0</TargetFrameworks>
 
     <Copyright>"Copyright (C) 2010-2018, Gaspar Nagy (http://gasparnagy.com)"</Copyright>
     <Company>gasparnagy.com</Company>
@@ -14,7 +14,8 @@
     <DefineConstants>TRACE;DEBUG;BODI_LIMITEDRUNTIME</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Moq" Version="4.2.1409.1722" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.6.1" />
+    <PackageReference Include="Moq" Version="4.8.2" />
     <PackageReference Include="NUnit" Version="3.10.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="3.10.0" />
     <PackageReference Include="Should" Version="1.1.20" />
@@ -34,7 +35,11 @@
     <Reference Include="System.Configuration" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.0'">
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.4.1" />
   </ItemGroup>
+
+  <Target Name="CopyCustomContent" AfterTargets="AfterBuild" Condition="'$(TargetFramework)' == 'netcoreapp2.0'">
+    <Copy SourceFiles="app.config" DestinationFiles="$(OutDir)\testhost.dll.config" />
+  </Target>
 </Project>
