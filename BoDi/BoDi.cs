@@ -15,6 +15,9 @@
  * 
  * Change history
  * 
+ * vNext
+ *   - Fix: Collection was modified issue (#7)
+ *
  * v1.3
  *   - Fix: When an object resolved without registration using the concrete type it cannot be resolved from sub context
  *   - Added IsRegistered methods to check if an interface or type is already registered (#6)
