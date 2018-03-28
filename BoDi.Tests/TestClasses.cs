@@ -248,4 +248,15 @@ namespace BoDi.Tests
             
         }
     }
+
+    public class Interface1DependingOnAnotherImplementation : IInterface1
+    {
+        public VerySimpleClass Other { get; }
+
+        public Interface1DependingOnAnotherImplementation(VerySimpleClass other)
+        // VerySimpleClass also implements IInterface1
+        {
+            Other = other;
+        }
+    }
 }
