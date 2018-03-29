@@ -9,10 +9,14 @@ set CONFIG="/p:Configuration=Release"
 @pause
 
 cd ..
+cd BoDi
 
-copy /Y AssemblyVersion.cs AssemblyVersion.cs.bak
-powershell -Command "(gc 'AssemblyVersion.cs') -replace '1.0.0-localdev', '%PKGVER%' | Out-File 'AssemblyVersion.cs'"
-powershell -Command "(gc 'AssemblyVersion.cs') -replace '1.0.0.0', '%VERSION%.0' | Out-File 'AssemblyVersion.cs'"
+copy /Y BoDi.csproj BoDi.csproj.bak
+powershell -Command "(gc 'BoDi.csproj') -replace '1.0.0.0', '%VERSION%.0' | Out-File 'BoDi.csproj'"
+powershell -Command "(gc 'BoDi.csproj') -replace '1.0.0', '%PKGVER%' | Out-File 'BoDi.csproj'"
+
+
+cd ..
 
 msbuild BoDi.sln %CONFIG%
 
@@ -21,6 +25,6 @@ cd BoDi.NuGetPackages
 msbuild BoDi.NuGetPackages.csproj "/p:NuGetVersion=%PKGVER%" /p:NugetPublishToLocalNugetFeed=true /t:Publish /p:NugetPublishLocalNugetFeedFolder=%NUGET_LOCAL_FEED%  %CONFIG%
 
 cd ..
-move /Y AssemblyVersion.cs.bak AssemblyVersion.cs
+move /Y BoDi\BoDi.csproj.bak BoDi\BoDi.csproj
 
 @popd
