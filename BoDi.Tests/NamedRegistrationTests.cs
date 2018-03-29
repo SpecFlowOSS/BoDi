@@ -182,6 +182,18 @@ namespace BoDi.Tests
             ((SimpleClassWithRegisteredNameDependency)obj).RegisteredName.ShouldEqual("a_name");
         }
 
+        [Test]
+        public void ShouldBeAbleToResolveNamedInstancesWhenDependingOnOther()
+        {
+            var container = new ObjectContainer();
+            container.RegisterTypeAs<Interface1DependingOnAnotherImplementation, IInterface1>("two");
+            container.RegisterTypeAs<VerySimpleClass, IInterface1>("one");
 
+            // when
+            container.Resolve<IDictionary<string, IInterface1>>();
+
+            // then
+            //should not throw Collection was modified; error
+        }
     }
 }
