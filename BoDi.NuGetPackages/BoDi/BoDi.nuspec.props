@@ -1,10 +1,16 @@
 ﻿<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" >
   <ItemGroup Label="BoDi">
-    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\BoDi.dll">
+    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\net45\BoDi.dll">
       <targetFolder>BoDi\lib\net45</targetFolder>
     </additionalFiles>
-    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\BoDi.pdb">
+    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\net45\BoDi.pdb">
       <targetFolder>BoDi\lib\net45</targetFolder>
+    </additionalFiles>
+    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\netstandard2.0\BoDi.dll">
+      <targetFolder>BoDi\lib\netstandard2.0</targetFolder>
+    </additionalFiles>
+    <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\bin\$(Configuration)\netstandard2.0\BoDi.pdb">
+      <targetFolder>BoDi\lib\netstandard2.0</targetFolder>
     </additionalFiles>
   </ItemGroup>
 </Project>

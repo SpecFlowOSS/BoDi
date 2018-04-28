@@ -3,5 +3,8 @@
     <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\BoDi.cs">
       <targetFolder>BoDi.Embedded\content\BoDi</targetFolder>
     </additionalFiles>
+     <additionalFiles Include="$(MSBuildThisFileDirectory)\..\..\BoDi\BoDi.cs">
+      <targetFolder>BoDi.Embedded\contentFiles\BoDi</targetFolder>
+    </additionalFiles>
   </ItemGroup>
 </Project>

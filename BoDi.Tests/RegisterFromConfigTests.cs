@@ -11,6 +11,9 @@ namespace BoDi.Tests
     [TestFixture]
     public class RegisterFromConfigTests
     {
+#if !NETCOREAPP2_0 
+        //Disable this tests, because of problem with dotnet test and app.configs - https://github.com/dotnet/corefx/issues/22101#partial-timeline-marker
+
         [Test]
         public void ShouldResolveFromDefaultSection()
         {
@@ -47,6 +50,7 @@ namespace BoDi.Tests
             Assert.IsNotNull(obj);
             Assert.IsInstanceOf(typeof(VerySimpleClass), obj);
         }
+#endif
     }
 }
 #endif

@@ -42,15 +42,14 @@ namespace BoDi.Tests
 
 */
         [Test]
-        [ExpectedException(typeof(ObjectContainerException))]
         public void NamedRegistrationShouldNotInflucenceNormalRegistrations()
         {
             var container = new ObjectContainer();
             container.RegisterTypeAs<VerySimpleClass, IInterface1>("a_name");
 
             // when
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<IInterface1>());
 
-            container.Resolve<IInterface1>();
         }
 
 
@@ -157,14 +156,14 @@ namespace BoDi.Tests
             instanceDict[MyEnumKey.Two].ShouldBeType<SimpleClassWithDefaultCtor>();
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException))]
+        [Test]
         public void ShouldNotBeAbleToResolveNamedInstancesDictionaryOtherThanStringAndEnumKey()
         {
             var container = new ObjectContainer();
 
             // when
 
-            var instanceDict = container.Resolve<IDictionary<int, IInterface1>>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<IDictionary<int, IInterface1>>());
         }
 
         [Test]

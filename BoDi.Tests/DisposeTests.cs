@@ -18,13 +18,13 @@ namespace BoDi.Tests
             container.ShouldImplement<IDisposable>();
         }
 
-        [Test, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "disposed", MatchType = MessageMatch.Contains)]
+        [Test/*ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "disposed", MatchType = MessageMatch.Contains)*/]
         public void ContainerShouldThrowExceptionWhenDisposed()
         {
             var container = new ObjectContainer();
             container.Dispose();
 
-            container.Resolve<IObjectContainer>();
+            Assert.Throws<ObjectContainerException>(() => container.Resolve<IObjectContainer>(), "Object container disposed");
         }
 
         [Test]
