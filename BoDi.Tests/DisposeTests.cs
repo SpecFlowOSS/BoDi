@@ -55,6 +55,18 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldNotCauseAnErrorWhenRequestingDispositionForANonDisposableInstance()
+        {
+            var container = new ObjectContainer();
+            var obj = new SimpleClassWithDefaultCtor();
+            container.RegisterInstanceAs<IInterface1>(obj, dispose: true);
+
+            container.Resolve<IInterface1>();
+
+            container.Dispose();
+        }
+
+        [Test]
         public void ShouldNotDisposeObjectsRegisteredAsInstance()
         {
             var container = new ObjectContainer();

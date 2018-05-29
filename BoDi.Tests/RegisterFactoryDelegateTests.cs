@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using Should;
 
 namespace BoDi.Tests
 {
@@ -82,6 +83,95 @@ namespace BoDi.Tests
             Assert.IsNotNull(obj);
             Assert.IsInstanceOf(typeof(ClassWithSimpleDependency), obj);
             Assert.AreSame(dependency, ((ClassWithSimpleDependency)obj).Dependency);
+        }
+
+        [Test]
+        public void ShouldDisposeFactoryWhenRequested()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<IDisposableClass>(() => new DisposableClass1(), dispose: true);
+            var obj = container.Resolve<IDisposableClass>();
+
+            // when
+            container.Dispose();
+
+            // then
+            Assert.IsTrue(obj.WasDisposed);
+        }
+
+        [Test]
+        public void ShouldNotDisposeFactoryWhenDispositionIsntRequested()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<IDisposableClass>(() => new DisposableClass1(), dispose: false);
+            var obj = container.Resolve<IDisposableClass>();
+
+            // when
+            container.Dispose();
+
+            // then
+            obj.WasDisposed.ShouldBeFalse();
+        }
+
+        [Test]
+        public void ShouldNotDisposeFactoryWhenDispositionIsRequestedForANonDisposableFactory()
+        {
+            // given
+            var container = new ObjectContainer();
+            container.RegisterFactoryAs<IInterface1>(() => new SimpleClassWithDefaultCtor(), dispose: true);
+            var obj = container.Resolve<IInterface1>();
+
+            // when
+            container.Dispose();
+        }
+
+        [Test]
+        public void ShouldPreserveDefaultFactoryDispositionBehaviorWhichIsToNotDispose()
+        {
+            // given
+            var container = (IObjectContainer)new ObjectContainer();
+            container.RegisterFactoryAs<IDisposableClass>(c => new DisposableClass1());
+            var obj = container.Resolve<IDisposableClass>();
+
+            // when
+            container.Dispose();
+
+            // then
+            obj.WasDisposed.ShouldBeFalse();
+        }
+
+
+        [Test]
+        public void ShouldNotAttemptToDisposeFactoryMoreThanOnce()
+        {
+            // given
+            var container = new ObjectContainer();
+            var dependency = new VerySimpleClass();
+            var instance = new OneTimeDisposableClass1();
+            container.RegisterFactoryAs<IDisposableClass>(() => instance, dispose: true);
+            var obj = container.Resolve<IDisposableClass>();
+            obj = container.Resolve<IDisposableClass>();
+
+            // when
+            container.Dispose();
+
+            // then
+            obj.WasDisposed.ShouldBeTrue();
+        }
+
+        [Test]
+        public void ShouldNotAttemptToReleaseANonDisposableFactory()
+        {
+            // given
+            var container = new ObjectContainer();
+            var dependency = new VerySimpleClass();
+            container.RegisterFactoryAs<IInterface1>(() => new VerySimpleClass());
+            var obj = container.Resolve<IInterface1>();
+
+            // when
+            container.Dispose();
         }
 
         [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)*/]

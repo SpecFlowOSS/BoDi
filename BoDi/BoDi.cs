@@ -132,7 +132,7 @@ namespace BoDi
         /// <typeparam name="TInterface">Interface to register as.</typeparam>
         /// <param name="factoryDelegate">The function to run to obtain the instance.</param>
         /// <param name="name">A name to resolve named instance, otherwise null.</param>
-        void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null);
+        void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null, bool dispose = false);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -398,15 +398,22 @@ namespace BoDi
         private class FactoryRegistration : IRegistration
         {
             private readonly Delegate factoryDelegate;
+            private readonly bool dispose;
 
             public FactoryRegistration(Delegate factoryDelegate)
+                : this(factoryDelegate, false) { }
+
+            public FactoryRegistration(Delegate factoryDelegate, bool dispose)
             {
                 this.factoryDelegate = factoryDelegate;
+                this.dispose = dispose;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                var objectKey = new RegistrationKey(obj.GetType(), keyToResolve.Name);
+                if (dispose) container.objectPool.Add(objectKey, obj);
                 return obj;
             }
         }
@@ -570,22 +577,22 @@ namespace BoDi
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
+        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null, bool dispose = false)
         {
             if (factoryDelegate == null) throw new ArgumentNullException("factoryDelegate");
             if (interfaceType == null) throw new ArgumentNullException("interfaceType");
@@ -595,7 +602,7 @@ namespace BoDi
 
             ClearRegistrations(registrationKey);
 
-            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate));
+            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate, dispose));
         }
 
         public bool IsRegistered<T>()
