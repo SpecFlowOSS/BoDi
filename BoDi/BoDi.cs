@@ -412,8 +412,9 @@ namespace BoDi
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
-                var objectKey = new RegistrationKey(obj.GetType(), keyToResolve.Name);
-                if (dispose) container.objectPool.Add(objectKey, obj);
+                if (dispose && obj is IDisposable && !container.disposableFactoryObjects.Contains(obj))
+                    container.disposableFactoryObjects.Add(obj as IDisposable);
+
                 return obj;
             }
         }
@@ -467,6 +468,7 @@ namespace BoDi
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
+        private readonly HashSet<IDisposable> disposableFactoryObjects = new HashSet<IDisposable>();
 
         public event Action<object> ObjectCreated;
 
@@ -872,6 +874,9 @@ namespace BoDi
             isDisposed = true;
 
             foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
+                obj.Dispose();
+
+            foreach (var obj in disposableFactoryObjects)
                 obj.Dispose();
 
             objectPool.Clear();
