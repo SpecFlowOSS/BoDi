@@ -882,6 +882,7 @@ namespace BoDi
             objectPool.Clear();
             registrations.Clear();
             resolvedObjects.Clear();
+            disposableFactoryObjects.Clear();
         }
     }
 
