@@ -89,6 +89,7 @@ namespace BoDi
         /// </summary>
         /// <typeparam name="TType">Implementation type</typeparam>
         /// <typeparam name="TInterface">Interface will be resolved</typeparam>
+        /// <returns>An object which allows to change resolving strategy.</returns>
         /// <param name="name">A name to register named instance, otherwise null.</param>
         /// <exception cref="ObjectContainerException">If there was already a resolve for the <typeparamref name="TInterface"/>.</exception>
         /// <remarks>
@@ -194,7 +195,15 @@ namespace BoDi
     }
     public interface ITypeRegistration
     {
+        /// <summary>
+        /// Changes resolving strategy to a new instance per each request.
+        /// </summary>
+        /// <returns></returns>
         ITypeRegistration InstancePerRequest();
+        /// <summary>
+        /// Changes resolving strategy to a single instance per object container. This strategy is a default behaviour. 
+        /// </summary>
+        /// <returns></returns>
         ITypeRegistration InstancePerContext();
     }
 
