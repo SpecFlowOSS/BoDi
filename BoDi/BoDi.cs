@@ -94,7 +94,7 @@ namespace BoDi
         /// <remarks>
         ///     <para>Previous registrations can be overridden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         /// </remarks>
-        void RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
+        ITypeRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
 
         /// <summary>
         /// Registers an instance 
@@ -188,10 +188,14 @@ namespace BoDi
         /// <returns><c>true</c> if the interface or type is registered; otherwise <c>false</c>.</returns>
         bool IsRegistered<T>(string name);
     }
-
     public interface IContainedInstance
     {
         IObjectContainer Container { get; }
+    }
+    public interface ITypeRegistration
+    {
+        ITypeRegistration InstancePerRequest();
+        ITypeRegistration InstancePerContext();
     }
 
     public class ObjectContainer : IObjectContainer
@@ -315,14 +319,21 @@ namespace BoDi
 
         #region Registration types
 
+        private enum TypeSolvingStrategy
+        {
+            PerContext,
+            PerRequest
+        }
+
         private interface IRegistration
         {
             object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
         }
 
-        private class TypeRegistration : IRegistration
+        private class TypeRegistration : IRegistration, ITypeRegistration
         {
             private readonly Type implementationType;
+            private TypeSolvingStrategy solvingStrategy = TypeSolvingStrategy.PerContext;
 
             public TypeRegistration(Type implementationType)
             {
@@ -330,6 +341,15 @@ namespace BoDi
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            {
+                if (solvingStrategy == TypeSolvingStrategy.PerRequest)
+                {
+                    return ResolvePerRequest(container, keyToResolve, resolutionPath);
+                }
+                return ResolvePerContext(container, keyToResolve, resolutionPath);
+            }
+
+            private object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
 
@@ -348,6 +368,14 @@ namespace BoDi
                 return obj;
             }
 
+            private object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            {
+                var typeToConstruct = GetTypeToConstruct(keyToResolve);
+                if (typeToConstruct.IsInterface)
+                    throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
+                return container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+            }
+
             private Type GetTypeToConstruct(RegistrationKey keyToResolve)
             {
                 var targetType = implementationType;
@@ -362,6 +390,18 @@ namespace BoDi
             public override string ToString()
             {
                 return "Type: " + implementationType.FullName;
+            }
+
+            public ITypeRegistration InstancePerRequest()
+            {
+                solvingStrategy = TypeSolvingStrategy.PerRequest;
+                return this;
+            }
+
+            public ITypeRegistration InstancePerContext()
+            {
+                solvingStrategy = TypeSolvingStrategy.PerContext;
+                return this;
             }
         }
 
@@ -406,7 +446,12 @@ namespace BoDi
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                var obj = container.GetPooledObject(keyToResolve);
+                if (obj == null)
+                {
+                    obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                    container.objectPool.Add(keyToResolve, obj);
+                }
                 return obj;
             }
         }
@@ -431,7 +476,7 @@ namespace BoDi
                 var genericArguments = typeToResolve.GetGenericArguments();
                 var keyType = genericArguments[0];
                 var targetType = genericArguments[1];
-                var result = (IDictionary)Activator.CreateInstance(typeof (Dictionary<,>).MakeGenericType(genericArguments));
+                var result = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(genericArguments));
 
                 foreach (var namedRegistration in container.registrations.Where(r => r.Key.Name != null && r.Key.Type == targetType).Select(r => r.Key).ToList())
                 {
@@ -458,7 +503,7 @@ namespace BoDi
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
-        private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
+        private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
         public event Action<object> ObjectCreated;
@@ -474,24 +519,24 @@ namespace BoDi
 
         #region Registration
 
-        public void RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
+        public ITypeRegistration RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
         {
             Type interfaceType = typeof(TInterface);
-            RegisterTypeAs(implementationType, interfaceType, name);
+            return RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        public void RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
+        public ITypeRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
         {
             Type interfaceType = typeof(TInterface);
             Type implementationType = typeof(TType);
-            RegisterTypeAs(implementationType, interfaceType, name);
+            return RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        public void RegisterTypeAs(Type implementationType, Type interfaceType)
+        public ITypeRegistration RegisterTypeAs(Type implementationType, Type interfaceType)
         {
-            if(!IsValidTypeMapping(implementationType, interfaceType))
+            if (!IsValidTypeMapping(implementationType, interfaceType))
                 throw new InvalidOperationException("type mapping is not valid");
-            RegisterTypeAs(implementationType, interfaceType, null);
+            return RegisterTypeAs(implementationType, interfaceType, null);
         }
 
         private bool IsValidTypeMapping(Type implementationType, Type interfaceType)
@@ -538,14 +583,16 @@ namespace BoDi
             }
         }
 
-        private void RegisterTypeAs(Type implementationType, Type interfaceType, string name)
+        private ITypeRegistration RegisterTypeAs(Type implementationType, Type interfaceType, string name)
         {
             var registrationKey = new RegistrationKey(interfaceType, name);
             AssertNotResolved(registrationKey);
 
             ClearRegistrations(registrationKey);
+            var typeRegistration = new TypeRegistration(implementationType);
+            AddRegistration(registrationKey, typeRegistration);
 
-            AddRegistration(registrationKey, new TypeRegistration(implementationType));
+            return typeRegistration;
         }
 
         public void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false)
@@ -615,7 +662,7 @@ namespace BoDi
         // ReSharper disable once UnusedParameter.Local
         private void AssertNotResolved(RegistrationKey interfaceType)
         {
-            if (resolvedObjects.ContainsKey(interfaceType))
+            if (resolvedKeys.Contains(interfaceType))
                 throw new ObjectContainerException("An object has been resolved for this interface already.", null);
         }
 
@@ -689,11 +736,10 @@ namespace BoDi
             AssertNotDisposed();
 
             var keyToResolve = new RegistrationKey(typeToResolve, name);
-            object resolvedObject;
-            if (!resolvedObjects.TryGetValue(keyToResolve, out resolvedObject))
+            object resolvedObject = ResolveObject(keyToResolve, resolutionPath);
+            if (!resolvedKeys.Contains(keyToResolve))
             {
-                resolvedObject = ResolveObject(keyToResolve, resolutionPath);
-                resolvedObjects.Add(keyToResolve, resolvedObject);
+                resolvedKeys.Add(keyToResolve);
             }
             Debug.Assert(typeToResolve.IsInstanceOfType(resolvedObject));
             return resolvedObject;
@@ -869,7 +915,7 @@ namespace BoDi
 
             objectPool.Clear();
             registrations.Clear();
-            resolvedObjects.Clear();
+            resolvedKeys.Clear();
         }
     }
 
