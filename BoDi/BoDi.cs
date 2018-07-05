@@ -95,7 +95,7 @@ namespace BoDi
         /// <remarks>
         ///     <para>Previous registrations can be overridden before the first resolution for the <typeparamref name="TInterface"/>.</para>
         /// </remarks>
-        ITypeRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
+        IStrategyRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface;
 
         /// <summary>
         /// Registers an instance 
@@ -133,7 +133,7 @@ namespace BoDi
         /// <typeparam name="TInterface">Interface to register as.</typeparam>
         /// <param name="factoryDelegate">The function to run to obtain the instance.</param>
         /// <param name="name">A name to resolve named instance, otherwise null.</param>
-        void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null);
+        IStrategyRegistration RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -193,18 +193,18 @@ namespace BoDi
     {
         IObjectContainer Container { get; }
     }
-    public interface ITypeRegistration
+    public interface IStrategyRegistration
     {
         /// <summary>
         /// Changes resolving strategy to a new instance per each request.
         /// </summary>
         /// <returns></returns>
-        ITypeRegistration InstancePerRequest();
+        IStrategyRegistration InstancePerRequest();
         /// <summary>
         /// Changes resolving strategy to a single instance per object container. This strategy is a default behaviour. 
         /// </summary>
         /// <returns></returns>
-        ITypeRegistration InstancePerContext();
+        IStrategyRegistration InstancePerContext();
     }
 
     public class ObjectContainer : IObjectContainer
@@ -328,7 +328,7 @@ namespace BoDi
 
         #region Registration types
 
-        private enum TypeSolvingStrategy
+        private enum SolvingStrategy
         {
             PerContext,
             PerRequest
@@ -339,26 +339,16 @@ namespace BoDi
             object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
         }
 
-        private class TypeRegistration : IRegistration, ITypeRegistration
+        private class TypeRegistration : RegistrationWithStrategy, IRegistration, IStrategyRegistration
         {
             private readonly Type implementationType;
-            private TypeSolvingStrategy solvingStrategy = TypeSolvingStrategy.PerContext;
 
             public TypeRegistration(Type implementationType)
             {
                 this.implementationType = implementationType;
             }
 
-            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
-            {
-                if (solvingStrategy == TypeSolvingStrategy.PerRequest)
-                {
-                    return ResolvePerRequest(container, keyToResolve, resolutionPath);
-                }
-                return ResolvePerContext(container, keyToResolve, resolutionPath);
-            }
-
-            private object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
 
@@ -377,7 +367,7 @@ namespace BoDi
                 return obj;
             }
 
-            private object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            protected override object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
                 if (typeToConstruct.IsInterface)
@@ -399,18 +389,6 @@ namespace BoDi
             public override string ToString()
             {
                 return "Type: " + implementationType.FullName;
-            }
-
-            public ITypeRegistration InstancePerRequest()
-            {
-                solvingStrategy = TypeSolvingStrategy.PerRequest;
-                return this;
-            }
-
-            public ITypeRegistration InstancePerContext()
-            {
-                solvingStrategy = TypeSolvingStrategy.PerContext;
-                return this;
             }
         }
 
@@ -444,16 +422,43 @@ namespace BoDi
             }
         }
 
-        private class FactoryRegistration : IRegistration
+        private abstract class RegistrationWithStrategy : IStrategyRegistration
+        {
+            protected SolvingStrategy solvingStrategy = SolvingStrategy.PerContext;
+            public virtual object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            {
+                if (solvingStrategy == SolvingStrategy.PerRequest)
+                {
+                    return ResolvePerRequest(container, keyToResolve, resolutionPath);
+                }
+                return ResolvePerContext(container, keyToResolve, resolutionPath);
+            }
+
+            protected abstract object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
+            protected abstract object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
+
+            public IStrategyRegistration InstancePerRequest()
+            {
+                solvingStrategy = SolvingStrategy.PerRequest;
+                return this;
+            }
+
+            public IStrategyRegistration InstancePerContext()
+            {
+                solvingStrategy = SolvingStrategy.PerContext;
+                return this;
+            }
+        }
+
+        private class FactoryRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Delegate factoryDelegate;
-
             public FactoryRegistration(Delegate factoryDelegate)
             {
                 this.factoryDelegate = factoryDelegate;
             }
 
-            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var obj = container.GetPooledObject(keyToResolve);
                 if (obj == null)
@@ -462,6 +467,10 @@ namespace BoDi
                     container.objectPool.Add(keyToResolve, obj);
                 }
                 return obj;
+            }
+            protected override object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            {
+                return container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
             }
         }
 
@@ -528,20 +537,20 @@ namespace BoDi
 
         #region Registration
 
-        public ITypeRegistration RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
+        public IStrategyRegistration RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
         {
             Type interfaceType = typeof(TInterface);
             return RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        public ITypeRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
+        public IStrategyRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
         {
             Type interfaceType = typeof(TInterface);
             Type implementationType = typeof(TType);
             return RegisterTypeAs(implementationType, interfaceType, name);
         }
 
-        public ITypeRegistration RegisterTypeAs(Type implementationType, Type interfaceType)
+        public IStrategyRegistration RegisterTypeAs(Type implementationType, Type interfaceType)
         {
             if (!IsValidTypeMapping(implementationType, interfaceType))
                 throw new InvalidOperationException("type mapping is not valid");
@@ -592,7 +601,7 @@ namespace BoDi
             }
         }
 
-        private ITypeRegistration RegisterTypeAs(Type implementationType, Type interfaceType, string name)
+        private IStrategyRegistration RegisterTypeAs(Type implementationType, Type interfaceType, string name)
         {
             var registrationKey = new RegistrationKey(interfaceType, name);
             AssertNotResolved(registrationKey);
@@ -626,14 +635,14 @@ namespace BoDi
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
+        public IStrategyRegistration RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            return RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null)
+        public IStrategyRegistration RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            return RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
         }
 
         public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null)
@@ -641,7 +650,7 @@ namespace BoDi
             RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
         }
 
-        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
+        public IStrategyRegistration RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
         {
             if (factoryDelegate == null) throw new ArgumentNullException("factoryDelegate");
             if (interfaceType == null) throw new ArgumentNullException("interfaceType");
@@ -650,8 +659,10 @@ namespace BoDi
             AssertNotResolved(registrationKey);
 
             ClearRegistrations(registrationKey);
+            var factoryRegistration = new FactoryRegistration(factoryDelegate);
+            AddRegistration(registrationKey, factoryRegistration);
 
-            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate));
+            return factoryRegistration;
         }
 
         public bool IsRegistered<T>()
