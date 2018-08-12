@@ -196,10 +196,10 @@ namespace BoDi
     public interface IStrategyRegistration
     {
         /// <summary>
-        /// Changes resolving strategy to a new instance per each request.
+        /// Changes resolving strategy to a new instance per each dependency.
         /// </summary>
         /// <returns></returns>
-        IStrategyRegistration InstancePerRequest();
+        IStrategyRegistration InstancePerDependency();
         /// <summary>
         /// Changes resolving strategy to a single instance per object container. This strategy is a default behaviour. 
         /// </summary>
@@ -331,7 +331,7 @@ namespace BoDi
         private enum SolvingStrategy
         {
             PerContext,
-            PerRequest
+            PerDependency
         }
 
         private interface IRegistration
@@ -367,7 +367,7 @@ namespace BoDi
                 return obj;
             }
 
-            protected override object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
                 if (typeToConstruct.IsInterface)
@@ -427,19 +427,19 @@ namespace BoDi
             protected SolvingStrategy solvingStrategy = SolvingStrategy.PerContext;
             public virtual object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                if (solvingStrategy == SolvingStrategy.PerRequest)
+                if (solvingStrategy == SolvingStrategy.PerDependency)
                 {
-                    return ResolvePerRequest(container, keyToResolve, resolutionPath);
+                    return ResolvePerDependency(container, keyToResolve, resolutionPath);
                 }
                 return ResolvePerContext(container, keyToResolve, resolutionPath);
             }
 
             protected abstract object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
-            protected abstract object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
+            protected abstract object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
 
-            public IStrategyRegistration InstancePerRequest()
+            public IStrategyRegistration InstancePerDependency()
             {
-                solvingStrategy = SolvingStrategy.PerRequest;
+                solvingStrategy = SolvingStrategy.PerDependency;
                 return this;
             }
 
@@ -468,7 +468,7 @@ namespace BoDi
                 }
                 return obj;
             }
-            protected override object ResolvePerRequest(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 return container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
             }

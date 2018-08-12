@@ -132,7 +132,7 @@ namespace BoDi.Tests
 
             // when 
 
-            container.RegisterFactoryAs<IInterface1>(() => new SimpleClassWithDefaultCtor()).InstancePerRequest();
+            container.RegisterFactoryAs<IInterface1>(() => new SimpleClassWithDefaultCtor()).InstancePerDependency();
 
             // then
 

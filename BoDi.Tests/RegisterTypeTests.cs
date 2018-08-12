@@ -122,7 +122,7 @@ namespace BoDi.Tests
 
             // when 
 
-            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>().InstancePerRequest();
+            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>().InstancePerDependency();
 
             // then
 
