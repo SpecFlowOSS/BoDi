@@ -14,6 +14,7 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Change history
+ *   - New 'instance per dependency' strategy added for type and factory registrations (by MKMZ)
  * 
  * vNext
  *   - Fix: Collection was modified issue (#7)
@@ -339,7 +340,7 @@ namespace BoDi
             object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
         }
 
-        private class TypeRegistration : RegistrationWithStrategy, IRegistration, IStrategyRegistration
+        private class TypeRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Type implementationType;
 
