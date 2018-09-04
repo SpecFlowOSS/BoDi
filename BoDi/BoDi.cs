@@ -462,6 +462,7 @@ namespace BoDi
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
         public event Action<object> ObjectCreated;
+        public IObjectContainer BaseContainer => baseContainer;
 
         public ObjectContainer(IObjectContainer baseContainer = null) 
         {
