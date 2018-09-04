@@ -17,6 +17,7 @@
  * 
  * vNext
  *   - Fix: Collection was modified issue (#7)
+ *   - Exposing BaseContainer to the public interface (#17 by jessicabuttigieg)
  *
  * v1.3
  *   - Fix: When an object resolved without registration using the concrete type it cannot be resolved from sub context
