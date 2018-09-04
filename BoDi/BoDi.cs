@@ -456,19 +456,20 @@ namespace BoDi
         #endregion
 
         private bool isDisposed = false;
-        public ObjectContainer BaseContainer { get; }
+        private readonly ObjectContainer baseContainer;
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
         public event Action<object> ObjectCreated;
+        public IObjectContainer BaseContainer => baseContainer;
 
         public ObjectContainer(IObjectContainer baseContainer = null) 
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))
                 throw new ArgumentException("Base container must be an ObjectContainer", "baseContainer");
 
-            this.BaseContainer = (ObjectContainer)baseContainer;
+            this.baseContainer = (ObjectContainer)baseContainer;
             RegisterInstanceAs<IObjectContainer>(this);
         }
 
@@ -707,8 +708,8 @@ namespace BoDi
                 return new KeyValuePair<ObjectContainer, IRegistration>(this, registration);
             }
 
-            if (BaseContainer != null)
-                return BaseContainer.GetRegistrationResult(keyToResolve);
+            if (baseContainer != null)
+                return baseContainer.GetRegistrationResult(keyToResolve);
 
             if (IsSpecialNamedInstanceDictionaryKey(keyToResolve))
             {
