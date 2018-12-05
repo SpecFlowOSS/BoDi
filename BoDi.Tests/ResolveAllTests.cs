@@ -48,6 +48,23 @@ namespace BoDi.Tests
             Assert.IsTrue(results.Contains(container.Resolve<IFancy>("fancier")));
         }
 
+        [Test]
+        public void ShouldResolveTypesRegisteredInBaseContainer()
+        {
+            // given
+            var baseContainer = new ObjectContainer();
+            var container = new ObjectContainer(baseContainer);
+            baseContainer.RegisterTypeAs<ImFancy, IFancy>("fancy");
+            baseContainer.RegisterTypeAs<ImFancier, IFancy>("fancier");
+
+            // when
+            var results = container.ResolveAll<IFancy>();
+
+            // then
+            Assert.IsTrue(results.Contains(container.Resolve<IFancy>("fancy")));
+            Assert.IsTrue(results.Contains(container.Resolve<IFancy>("fancier")));
+        }
+
     }
 
 }
