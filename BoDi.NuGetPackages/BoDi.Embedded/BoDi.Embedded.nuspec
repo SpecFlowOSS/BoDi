@@ -2,7 +2,7 @@
 <package xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <metadata xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <id>BoDi.Embedded</id>
-    <version>1.4.0-alpha1</version>
+    <version>1.4.1-alpha1</version>
     <title>BoDi - Simple IoC Container (embedded as source)</title>
     <authors>Gaspar Nagy</authors>
     <owners>Gaspar Nagy</owners>

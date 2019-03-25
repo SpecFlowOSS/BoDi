@@ -15,7 +15,8 @@
  * 
  * Change history
  * 
- * vNext
+ * v1.4
+ *   - Provide .NET Standard 2.0 and .NET 4.5 library package (#14 by SabotageAndi)
  *   - Fix: Collection was modified issue (#7)
  *   - Exposing BaseContainer to the public interface (#17 by jessicabuttigieg)
  *
