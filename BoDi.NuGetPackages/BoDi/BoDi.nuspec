@@ -14,7 +14,7 @@
     <!--<iconUrl>TODO</iconUrl>-->
     <licenseUrl>https://github.com/gasparnagy/BoDi/raw/master/LICENSE.txt</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <copyright>Copyright (C) 2010-2018, Gaspar Nagy (http://gasparnagy.com)</copyright>
+    <copyright>Copyright (C) 2010-2019, Gaspar Nagy (http://gasparnagy.com)</copyright>
     <tags>dependency injection, embeddable</tags>
   </metadata>
 </package>
