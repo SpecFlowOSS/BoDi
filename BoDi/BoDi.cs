@@ -134,7 +134,7 @@ namespace BoDi
         /// <typeparam name="TInterface">Interface to register as.</typeparam>
         /// <param name="factoryDelegate">The function to run to obtain the instance.</param>
         /// <param name="name">A name to resolve named instance, otherwise null.</param>
-        void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null);
+        void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null, bool dispose = false);
 
         /// <summary>
         /// Resolves an implementation object for an interface or type.
@@ -400,15 +400,23 @@ namespace BoDi
         private class FactoryRegistration : IRegistration
         {
             private readonly Delegate factoryDelegate;
+            private readonly bool dispose;
 
             public FactoryRegistration(Delegate factoryDelegate)
+                : this(factoryDelegate, false) { }
+
+            public FactoryRegistration(Delegate factoryDelegate, bool dispose)
             {
                 this.factoryDelegate = factoryDelegate;
+                this.dispose = dispose;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                if (dispose && obj is IDisposable && !container.disposableFactoryObjects.Contains(obj))
+                    container.disposableFactoryObjects.Add(obj as IDisposable);
+
                 return obj;
             }
         }
@@ -462,6 +470,7 @@ namespace BoDi
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly Dictionary<RegistrationKey, object> resolvedObjects = new Dictionary<RegistrationKey, object>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
+        private readonly HashSet<IDisposable> disposableFactoryObjects = new HashSet<IDisposable>();
 
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
@@ -573,22 +582,22 @@ namespace BoDi
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Func<IObjectContainer, TInterface> factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null)
+        public void RegisterFactoryAs<TInterface>(Delegate factoryDelegate, string name = null, bool dispose = false)
         {
-            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name);
+            RegisterFactoryAs(factoryDelegate, typeof(TInterface), name, dispose);
         }
 
-        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
+        public void RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null, bool dispose = false)
         {
             if (factoryDelegate == null) throw new ArgumentNullException("factoryDelegate");
             if (interfaceType == null) throw new ArgumentNullException("interfaceType");
@@ -598,7 +607,7 @@ namespace BoDi
 
             ClearRegistrations(registrationKey);
 
-            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate));
+            AddRegistration(registrationKey, new FactoryRegistration(factoryDelegate, dispose));
         }
 
         public bool IsRegistered<T>()
@@ -870,9 +879,13 @@ namespace BoDi
             foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
                 obj.Dispose();
 
+            foreach (var obj in disposableFactoryObjects)
+                obj.Dispose();
+
             objectPool.Clear();
             registrations.Clear();
             resolvedObjects.Clear();
+            disposableFactoryObjects.Clear();
         }
     }
 

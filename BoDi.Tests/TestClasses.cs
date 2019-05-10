@@ -51,13 +51,13 @@ namespace BoDi.Tests
     {
         public MyStructWithDependencies(VerySimpleClass dep)
         {
-            
+
         }
     }
 
     public struct MyStructWithoutCtor
     {
-        
+
     }
 
     /// <summary>
@@ -192,9 +192,18 @@ namespace BoDi.Tests
     {
         public bool WasDisposed { get; private set; }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             WasDisposed = true;
+        }
+    }
+
+    public class OneTimeDisposableClass1 : DisposableClass1
+    {
+        public override void Dispose()
+        {
+            if (WasDisposed) throw new InvalidOperationException("Already disposed!");
+            base.Dispose();
         }
     }
 
