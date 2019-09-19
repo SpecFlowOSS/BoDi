@@ -112,5 +112,41 @@ namespace BoDi.Tests
             // then
             Assert.Catch<InvalidOperationException>(() => container.RegisterTypeAs(typeof(SimpleClassExtendingGenericInterface), typeof(IGenericInterface<>)));
         }
+
+        [Test]
+        public void ShouldAlwaysCreateInstanceOnPerRequestStrategy()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>().InstancePerDependency();
+
+            // then
+
+            var obj1 = (SimpleClassWithDefaultCtor) container.Resolve<IInterface1>();
+            var obj2 = (SimpleClassWithDefaultCtor) container.Resolve<IInterface1>();
+            Assert.AreNotSame(obj1, obj2);
+        }
+
+        [Test]
+        public void ShouldAlwaysCreateSameObjectOnPerContextStrategy()
+        {
+            // given
+
+            var container = new ObjectContainer();
+
+            // when 
+
+            container.RegisterTypeAs<SimpleClassWithDefaultCtor, IInterface1>().InstancePerContext();
+
+            // then
+
+            var obj1 = (SimpleClassWithDefaultCtor)container.Resolve<IInterface1>();
+            var obj2 = (SimpleClassWithDefaultCtor)container.Resolve<IInterface1>();
+            Assert.AreSame(obj1, obj2);
+        }
     }
 }
