@@ -42,6 +42,16 @@
  * 
  * v1.1 - released with SpecFlow v1.9.0
  * 
+ * 
+ * --------------
+ * Note about thread safety
+ * 
+ * BoDi container is not reentrant and can't be used from different threads.
+ * Typical user (Specflow) ensures it by allocating container per test thread and all feature- and scenario- containers as child containers.
+ * The manual synchronization is not necessary for usual cases 
+ * (using test-thread, feature or scenario containers and not creating multiple threads from the binding code).
+ * 
+ * More information here https://github.com/gasparnagy/BoDi/issues/27
  */
 using System;
 using System.Collections;
