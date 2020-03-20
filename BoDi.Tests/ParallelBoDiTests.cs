@@ -20,16 +20,20 @@ namespace BoDi.Tests
             public IObjectContainer Create(IObjectContainer parent = null) => new ObjectContainer(parent);
         }
 
-        private static IEnumerable<IObjectContainer> Create(IBodiFactory factory)
+        private static IObjectContainer[] Create(IBodiFactory factory)
         {
             var parent = factory.Create();
-            parent.RegisterTypeAs<object, object>();
+            parent.RegisterTypeAs<object, object>().InstancePerContext();
 
-            var left = factory.Create(parent);
-            var right = factory.Create(parent);
+            IEnumerable<IObjectContainer> CreateChilds(int count)
+            {
+                for (var i = 1; i < count; i ++)
+                {
+                    yield return factory.Create(parent);
+                }
+            }
 
-            yield return left;
-            yield return right;
+            return CreateChilds(50).ToArray();
         }
 
         [Test]
@@ -38,17 +42,25 @@ namespace BoDi.Tests
             var containers = Create(new BoDiSimpleFactory());
 
             var result = await Task.WhenAll(containers.Select(c => Task.Run(() => c.Resolve<object>())).ToArray());
-            Assert.AreSame(result[0], result[1]);
+            AssertResultsAreSame(result);
         }
 
-       
+        private static void AssertResultsAreSame(object[] result)
+        {
+            var first = result.First();
+            foreach (var any in result)
+            {
+                Assert.AreSame(first, any);
+            }
+        }
+
 
         [Test]
         public void ShouldWorkWhenCreateSequentally()
         {
             var containers = Create(new BoDiSimpleFactory());
             var result = containers.Select(c => c.Resolve<object>()).ToArray();
-            Assert.AreSame(result[0], result[1]);
+            AssertResultsAreSame(result);
         }
     }
 }
