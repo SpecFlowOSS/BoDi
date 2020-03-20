@@ -523,12 +523,15 @@ namespace BoDi
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
+        protected object SyncRootForChilds = new object();
+
         private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
 
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
+        
 
         public ObjectContainer(IObjectContainer baseContainer = null) 
         {
@@ -778,7 +781,12 @@ namespace BoDi
             }
 
             if (baseContainer != null)
-                return baseContainer.GetRegistrationResult(keyToResolve);
+            {
+                lock (baseContainer.SyncRootForChilds)
+                {
+                    return baseContainer.GetRegistrationResult(keyToResolve);
+                }
+            }
 
             if (IsSpecialNamedInstanceDictionaryKey(keyToResolve))
             {
@@ -845,7 +853,21 @@ namespace BoDi
 
             var resolutionPathForResolve = registrationToUse.Key == this ? 
                 resolutionPath : new ResolutionList();
-            var result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
+
+            object result;
+
+            if (registrationToUse.Key == this)
+            {
+                result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
+            }
+            else
+            {
+                lock (registrationToUse.Key.SyncRootForChilds)
+                {
+                    result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
+                }
+            }
+            
             if (isImplicitTypeRegistration) // upon successful implicit registration, we register the rule, so that sub context can also get the same resolved value
                 AddRegistration(keyToResolve, registrationToUse.Value);
             return result;
