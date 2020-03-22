@@ -12,6 +12,10 @@
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>6b37ec61</NuGetPackageImportStamp>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <OutputPath>bin\Release\</OutputPath>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include=".build\build.props" />
     <Compile Include=".build\build.targets" />
