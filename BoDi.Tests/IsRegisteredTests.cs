@@ -68,5 +68,24 @@ namespace BoDi.Tests
 
             Assert.IsTrue(isRegistered);
         }
+
+        [Test]
+        public void ShouldReturnTrueIfInterfaceRegisteredInBaseContainer()
+        {
+            // given
+
+            var baseContainer = new ObjectContainer();
+            var container = new ObjectContainer(baseContainer);
+
+            // when 
+
+            baseContainer.RegisterTypeAs<VerySimpleClass, IInterface1>();
+
+            // then
+
+            bool isRegistered = container.IsRegistered<IInterface1>();
+
+            Assert.IsTrue(isRegistered);
+        }
     }
 }

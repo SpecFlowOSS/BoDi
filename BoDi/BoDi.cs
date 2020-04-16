@@ -690,7 +690,9 @@ namespace BoDi
 
             var keyToResolve = new RegistrationKey(typeToResolve, name);
 
-            return registrations.ContainsKey(keyToResolve);
+            if (registrations.ContainsKey(keyToResolve))
+				return true;
+			return baseContainer != null && baseContainer.IsRegistered<T>(name);
         }
 
         // ReSharper disable once UnusedParameter.Local
@@ -698,6 +700,7 @@ namespace BoDi
         {
             if (resolvedKeys.Contains(interfaceType))
                 throw new ObjectContainerException("An object has been resolved for this interface already.", null);
+            baseContainer?.AssertNotResolved(interfaceType);
         }
 
         private void ClearRegistrations(RegistrationKey registrationKey)
@@ -762,7 +765,8 @@ namespace BoDi
         {
             return registrations
                 .Where(x => x.Key.Type == typeof(T))
-                .Select(x => Resolve (x.Key.Type, x.Key.Name) as T);
+                .Select(x => Resolve (x.Key.Type, x.Key.Name) as T)
+				.Union(baseContainer != null ? baseContainer.ResolveAll<T>() : new T[0]);
         }
 
         private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
