@@ -513,7 +513,7 @@ namespace BoDi
                 {
                     var convertedKey = ChangeType(namedRegistration.Name, keyType);
                     Debug.Assert(convertedKey != null);
-                    result.Add(convertedKey, container.Resolve(namedRegistration.Type, namedRegistration.Name));
+                    result.Add(convertedKey, container.ResolveInternal(namedRegistration.Type, new ResolutionList(), namedRegistration.Name));
                 }
 
                 return result;
@@ -739,6 +739,8 @@ namespace BoDi
 
         #region Resolve
 
+        private readonly object resolutionLock = new object();
+
         public T Resolve<T>()
         {
             return Resolve<T>(null);
@@ -748,24 +750,33 @@ namespace BoDi
         {
             Type typeToResolve = typeof(T);
 
-            object resolvedObject = Resolve(typeToResolve, name);
-
-            return (T)resolvedObject;
+            lock (resolutionLock)
+            {
+                object resolvedObject = ResolveInternal(typeToResolve, new ResolutionList(), name);
+                return (T)resolvedObject;
+            }
         }
 
         public object Resolve(Type typeToResolve, string name = null)
         {
-            return Resolve(typeToResolve, new ResolutionList(), name);
+            lock (resolutionLock)
+            {
+                return ResolveInternal(typeToResolve, new ResolutionList(), name);
+            }
         }
 
         public IEnumerable<T> ResolveAll<T>() where T : class
         {
-            return registrations
-                .Where(x => x.Key.Type == typeof(T))
-                .Select(x => Resolve (x.Key.Type, x.Key.Name) as T);
+            lock (resolutionLock)
+            {
+                return registrations
+                    .Where(x => x.Key.Type == typeof(T))
+                    .Select(x => ResolveInternal(x.Key.Type, new ResolutionList(), x.Key.Name) as T)
+                    .ToList(); // need to force enumeration to ensure thread safety for the whole enumeration
+            }
         }
 
-        private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
+        private object ResolveInternal(Type typeToResolve, ResolutionList resolutionPath, string name)
         {
             AssertNotDisposed();
 
@@ -910,7 +921,7 @@ namespace BoDi
 
         private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
-            return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : Resolve(p.ParameterType, resolutionPath, null)).ToArray();
+            return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : ResolveInternal(p.ParameterType, resolutionPath, null)).ToArray();
         }
 
         private object ResolveRegisteredName(RegistrationKey keyToResolve)
