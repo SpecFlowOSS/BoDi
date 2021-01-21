@@ -4,6 +4,8 @@ A very simple IoC container, easily embeddable also as a source code.
 
 Was created to support SpecFlow: http://www.specflow.org
 
+Transfered to SpecFlowOSS from https://github.com/gasparnagy/BoDi.
+
 == Copyright
 
 Copyright (c) Gaspar Nagy. See LICENSE for details.
