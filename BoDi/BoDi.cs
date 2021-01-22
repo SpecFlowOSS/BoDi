@@ -61,6 +61,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Threading;
 
 namespace BoDi
 {
@@ -355,6 +356,7 @@ namespace BoDi
         private class TypeRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Type implementationType;
+            private readonly object syncRoot = new object();
 
             public TypeRegistration(Type implementationType)
             {
@@ -366,19 +368,22 @@ namespace BoDi
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
 
                 var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
-                object obj = container.GetPooledObject(pooledObjectKey);
 
-                if (obj == null)
+                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(pooledObjectKey), () =>
                 {
                     if (typeToConstruct.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
+                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve,
+                            resolutionPath.ToTypeList());
 
-                    obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+                    var obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
-                }
+                    return obj;
+                }, resolutionPath);
 
-                return obj;
+                return result;
             }
+
+           
 
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -461,11 +466,40 @@ namespace BoDi
                 solvingStrategy = SolvingStrategy.PerContext;
                 return this;
             }
+
+            protected static object ExecuteWithLock(object lockObject, Func<object> getter, Func<object> factory, ResolutionList resolutionPath)
+            {
+                var obj = getter();
+
+                if (obj != null)
+                    return obj;
+
+                if (Monitor.TryEnter(lockObject, new TimeSpan(0, 0, 1)))
+                {
+                    try
+                    {
+                        obj = getter();
+
+                        if (obj != null)
+                            return obj;
+
+                        obj = factory();
+                        return obj;
+                    }
+                    finally
+                    {
+                        Monitor.Exit(lockObject);
+                    }
+                }
+
+                throw new ObjectContainerException("Potential Circular dependency.", resolutionPath.ToTypeList());
+            }
         }
 
         private class FactoryRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Delegate factoryDelegate;
+            private readonly object syncRoot = new object();
             public FactoryRegistration(Delegate factoryDelegate)
             {
                 this.factoryDelegate = factoryDelegate;
@@ -473,13 +507,14 @@ namespace BoDi
 
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var obj = container.GetPooledObject(keyToResolve);
-                if (obj == null)
+                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(keyToResolve), () =>
                 {
-                    obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                    var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
                     container.objectPool.Add(keyToResolve, obj);
-                }
-                return obj;
+                    return obj;
+                }, resolutionPath);
+                
+                return result;
             }
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
