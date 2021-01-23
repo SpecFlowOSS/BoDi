@@ -8,10 +8,11 @@ namespace BODi.Performance.Tests.Benchmarks
     [MarkdownExporterAttribute.GitHub]
     [MinColumn, MaxColumn, MeanColumn, MedianColumn, RankColumn]
     [Orderer(SummaryOrderPolicy.FastestToSlowest, MethodOrderPolicy.Declared)]
-    public abstract class BenchmarkBase
+    public abstract class SingleContainerBenchmarkBase
     {
         protected internal IObjectContainer ContainerCurrent;
         protected internal BoDi1_4.IObjectContainer Container14;
+        protected internal BoDi1_Next_Flawed.IObjectContainer Container1NextFlawed;
 
         [GlobalSetup]
         public void Setup()
@@ -28,6 +29,18 @@ namespace BODi.Performance.Tests.Benchmarks
             Container14.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
             Container14.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered4());
 
+
+            Container1NextFlawed = new BoDi1_Next_Flawed.ObjectContainer();
+            Container1NextFlawed.RegisterFactoryAs(_ => new FactoryRegistered());
+            Container1NextFlawed.RegisterTypeAs<TypeRegistered, TypeRegistered>();
+            Container1NextFlawed.RegisterTypeAs<AllRegistered1, IAllRegisteredFromType>();
+            Container1NextFlawed.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
+            Container1NextFlawed.RegisterTypeAs<AllRegistered3, IAllRegisteredFromType>();
+            Container1NextFlawed.RegisterTypeAs<AllRegistered4, IAllRegisteredFromType>();
+            Container1NextFlawed.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered1());
+            Container1NextFlawed.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered2());
+            Container1NextFlawed.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
+            Container1NextFlawed.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered4());
 
             ContainerCurrent = new ObjectContainer();
             ContainerCurrent.RegisterFactoryAs(_ => new FactoryRegistered());
