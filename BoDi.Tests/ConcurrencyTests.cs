@@ -183,6 +183,178 @@ namespace BoDi.Tests
                 BlockingObject.ResetBlockingEvents();
             }
         }
+
+        [Test]
+        public void ShouldBeAbleToResolveFromMultipleThreadsFromContainerHierarchyWhenRegisteredAsType(
+            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
+            [Values(null, "Name")] string name)
+        {
+            try
+            {
+                
+                IObjectContainer baseContainer = new ObjectContainer();
+                IObjectContainer childContainer = new ObjectContainer(baseContainer);
+                var registration = baseContainer.RegisterTypeAs<BlockingObject, BlockingObject>(name);
+                
+                ApplyRegistrationStrategy(registration, registrationStrategy);
+
+                var thread1 = new Thread(_ => Assert.That(() => baseContainer.Resolve<BlockingObject>(name), Throws.Nothing));
+                var thread2 = new Thread(_ => Assert.That(() => childContainer.Resolve<BlockingObject>(name), Throws.Nothing));
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
+
+        [Test]
+        public void ShouldBeAbleToResolveFromMultipleThreadsFromContainerHierarchyWhenRegisteredAsFactory(
+            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
+            [Values(null, "Name")] string name)
+        {
+            try
+            {
+                
+                IObjectContainer baseContainer = new ObjectContainer();
+                IObjectContainer childContainer = new ObjectContainer(baseContainer);
+                var registration = baseContainer.RegisterFactoryAs(_ => new BlockingObject());
+                
+                ApplyRegistrationStrategy(registration, registrationStrategy);
+
+                var thread1 = new Thread(_ => Assert.That(() => baseContainer.Resolve<BlockingObject>(name), Throws.Nothing));
+                var thread2 = new Thread(_ => Assert.That(() => childContainer.Resolve<BlockingObject>(name), Throws.Nothing));
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
+
+        [Test]
+        public void ShouldBeAbleToResolveAllFromMultipleThreadsFromContainerHierarchyWhenRegisteredAsType(
+            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
+            [Values(null, "Name")] string name)
+        {
+            try
+            {
+                
+                IObjectContainer baseContainer = new ObjectContainer();
+                IObjectContainer childContainer = new ObjectContainer(baseContainer);
+                var registration = baseContainer.RegisterTypeAs<BlockingObject, BlockingObject>(name);
+                
+                ApplyRegistrationStrategy(registration, registrationStrategy);
+
+                var thread1 = new Thread(_ => Assert.That(() => baseContainer.ResolveAll<BlockingObject>().ToList(), Throws.Nothing));
+                var thread2 = new Thread(_ => Assert.That(() => childContainer.ResolveAll<BlockingObject>().ToList(), Throws.Nothing));
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
+
+        [Test]
+        public void ShouldBeAbleToResolveAllFromMultipleThreadsFromContainerHierarchyWhenRegisteredAsFactory(
+            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
+            [Values(null, "Name")] string name)
+        {
+            try
+            {
+                
+                IObjectContainer baseContainer = new ObjectContainer();
+                IObjectContainer childContainer = new ObjectContainer(baseContainer);
+                var registration = baseContainer.RegisterFactoryAs(_ => new BlockingObject());
+                
+                ApplyRegistrationStrategy(registration, registrationStrategy);
+
+                var thread1 = new Thread(_ => Assert.That(() => baseContainer.ResolveAll<BlockingObject>().ToList(), Throws.Nothing));
+                var thread2 = new Thread(_ => Assert.That(() => childContainer.ResolveAll<BlockingObject>().ToList(), Throws.Nothing));
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
         
         private void ApplyRegistrationStrategy(IStrategyRegistration registration, RegistrationStrategy registrationStrategy)
         {
