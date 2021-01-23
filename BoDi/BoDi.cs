@@ -345,9 +345,14 @@ namespace BoDi
         {
             private readonly ConcurrentDictionary<RegistrationKey, Lazy<object>> objects = new ConcurrentDictionary<RegistrationKey, Lazy<object>>();
 
-            public object GetOrAdd(RegistrationKey key, Func<RegistrationKey, object> valueFactory)
+            public object GetOrAdd(RegistrationKey registrationKey, ResolutionList resolutionPath, Func<string> getRegistrationDescription, Func<RegistrationKey, object> valueFactory)
             {
-                var lazy = objects.GetOrAdd(key, k => new Lazy<object>(() => valueFactory(k), LazyThreadSafetyMode.ExecutionAndPublication));
+                if (resolutionPath.Contains(registrationKey))
+                {
+                    throw new ObjectContainerException("Circular dependency found! " + getRegistrationDescription(), resolutionPath.ToTypeList());
+                }
+
+                var lazy = objects.GetOrAdd(registrationKey, k => new Lazy<object>(() => valueFactory(k), LazyThreadSafetyMode.ExecutionAndPublication));
 
                 var value =  lazy.Value;
                 if (value is NonDisposableWrapper nonDisposableWrapper)
@@ -419,7 +424,11 @@ namespace BoDi
 
                 var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
 
-                return container.objectPool.GetOrAdd(pooledObjectKey, _ =>
+                return container.objectPool.GetOrAdd(
+                    pooledObjectKey,
+                    resolutionPath,
+                    () => typeToConstruct.FullName,
+                    _ =>
                     {
                         if (typeToConstruct.IsInterface)
                             throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
@@ -521,7 +530,11 @@ namespace BoDi
 
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                return container.objectPool.GetOrAdd(keyToResolve, _ => container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve));
+                return container.objectPool.GetOrAdd(
+                    keyToResolve,
+                    resolutionPath,
+                    () => factoryDelegate.ToString(),
+                    _ => container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve));
             }
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -678,7 +691,11 @@ namespace BoDi
 
             ClearRegistrations(registrationKey);
             AddRegistration(registrationKey, new InstanceRegistration(instance));
-            objectPool.GetOrAdd(new RegistrationKey(instance.GetType(), name), _ => GetPoolableInstance(instance, dispose));
+            objectPool.GetOrAdd(
+                new RegistrationKey(instance.GetType(), name),
+                new ResolutionList(),
+                () => instance.GetType().FullName,
+                _ => GetPoolableInstance(instance, dispose));
         }
 
         private static object GetPoolableInstance(object instance, bool dispose)
