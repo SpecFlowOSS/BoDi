@@ -588,7 +588,7 @@ namespace BoDi
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
-        private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
+        private readonly ConcurrentDictionary<RegistrationKey, IRegistration> registrations = new ConcurrentDictionary<RegistrationKey, IRegistration>();
         private readonly ResolvedKeys resolvedKeys = new ResolvedKeys();
         private readonly ObjectPool objectPool = new ObjectPool();
 
@@ -663,10 +663,7 @@ namespace BoDi
             if (key.Name != null)
             {
                 var dictKey = CreateNamedInstanceDictionaryKey(key.Type);
-                if (!registrations.ContainsKey(dictKey))
-                {
-                    registrations[dictKey] = new NamedInstanceDictionaryRegistration();
-                }
+                registrations.TryAdd(dictKey, new NamedInstanceDictionaryRegistration());
             }
         }
 
@@ -761,7 +758,7 @@ namespace BoDi
 
         private void ClearRegistrations(RegistrationKey registrationKey)
         {
-            registrations.Remove(registrationKey);
+            registrations.TryRemove(registrationKey, out _);
         }
 
 #if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
