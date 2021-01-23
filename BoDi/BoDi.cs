@@ -465,15 +465,24 @@ namespace BoDi
         private class InstanceRegistration : IRegistration
         {
             private readonly object instance;
+            private readonly string name;
+            private readonly bool dispose;
 
-            public InstanceRegistration(object instance)
+            public InstanceRegistration(object instance, string name, bool dispose)
             {
                 this.instance = instance;
+                this.name = name;
+                this.dispose = dispose;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                return instance;
+                return container.objectPool.GetOrAdd(new RegistrationKey(instance.GetType(), name), resolutionPath, ToString, _ => GetPoolableInstance());
+            }
+
+            private object GetPoolableInstance()
+            {
+                return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
             }
 
             public override string ToString()
@@ -687,17 +696,10 @@ namespace BoDi
             AssertNotResolved(registrationKey);
 
             ClearRegistrations(registrationKey);
-            AddRegistration(registrationKey, new InstanceRegistration(instance));
-            objectPool.GetOrAdd(
-                new RegistrationKey(instance.GetType(), name),
-                new ResolutionList(),
-                () => instance.GetType().FullName,
-                _ => GetPoolableInstance(instance, dispose));
-        }
-
-        private static object GetPoolableInstance(object instance, bool dispose)
-        {
-            return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
+            var instanceRegistration = new InstanceRegistration(instance, name, dispose);
+            AddRegistration(registrationKey, instanceRegistration);
+            // add the object to the pool to ensure it will be disposed if disposable and dispose is true, even if never resolved by the code.
+            _ = instanceRegistration.Resolve(this, registrationKey, new ResolutionList());
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class
