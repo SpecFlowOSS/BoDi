@@ -62,7 +62,8 @@ namespace BoDi.Tests
             try
             {
                 IObjectContainer container = new ObjectContainer();
-                container.RegisterFactoryAs(_ => new BlockingObject(), name);
+                var registration = container.RegisterFactoryAs(_ => new BlockingObject(), name);
+                ApplyRegistrationStrategy(registration, registrationStrategy);
 
                 void Resolve(object _)
                 {
@@ -105,7 +106,8 @@ namespace BoDi.Tests
             try
             {
                 IObjectContainer container = new ObjectContainer();
-                container.RegisterTypeAs<BlockingObject, BlockingObject>();
+                var registration = container.RegisterTypeAs<BlockingObject, BlockingObject>();
+                ApplyRegistrationStrategy(registration, registrationStrategy);
 
                 void Resolve(object _)
                 {
@@ -148,7 +150,8 @@ namespace BoDi.Tests
             try
             {
                 IObjectContainer container = new ObjectContainer();
-                container.RegisterFactoryAs(_ => new BlockingObject());
+                var registration = container.RegisterFactoryAs(_ => new BlockingObject());
+                ApplyRegistrationStrategy(registration, registrationStrategy);
 
                 void Resolve(object _)
                 {
