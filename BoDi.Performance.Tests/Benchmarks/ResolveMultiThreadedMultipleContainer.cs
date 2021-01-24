@@ -20,14 +20,14 @@ namespace BoDi.Performance.Tests.Benchmarks
             {
                 for (int i = 0; i < Loops / ThreadCount; i++)
                 {
-                    _ = ContainerCurrentLevel2.ResolveAll<TypeRegisteredLevel4>();
-                    _ = ContainerCurrentLevel3.ResolveAll<TypeRegisteredLevel3>();
+                    _ = ContainerCurrentLevel2.ResolveAll<TypeRegisteredLevel4>().ToList();
+                    _ = ContainerCurrentLevel3.ResolveAll<TypeRegisteredLevel3>().ToList();
                     _ = ContainerCurrentLevel3.Resolve<TypeRegisteredLevel4>();
-                    _ = ContainerCurrentLevel4.ResolveAll<TypeRegisteredLevel4>();
-                    _ = ContainerCurrentLevel2.ResolveAll<TypeRegisteredLevel3>();
+                    _ = ContainerCurrentLevel4.ResolveAll<TypeRegisteredLevel4>().ToList();
+                    _ = ContainerCurrentLevel2.ResolveAll<TypeRegisteredLevel3>().ToList();
                     _ = ContainerCurrentLevel1.Resolve<TypeRegisteredLevel2>();
                     _ = ContainerCurrentLevel2.Resolve<TypeRegisteredLevel2>();
-                    _ = ContainerCurrentLevel1.ResolveAll<TypeRegisteredLevel3>();
+                    _ = ContainerCurrentLevel1.ResolveAll<TypeRegisteredLevel3>().ToList();
                     _ = ContainerCurrentLevel1.Resolve<TypeRegisteredLevel1>();
                     _ = ContainerCurrentLevel1.Resolve<TypeRegisteredLevel4>();
                 }

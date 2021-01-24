@@ -21,7 +21,8 @@ namespace BODi.Performance.Tests.Benchmarks
         [Benchmark(Description = "Current")]
         public object CurrentVersion()
         {
-            return ContainerCurrent.ResolveAll<IAllRegisteredFromFactory>();
+            // current returns a yet unresolved IEnumerable, so we need to force resolution
+            return ContainerCurrent.ResolveAll<IAllRegisteredFromFactory>().ToList();
         }
     }
 }

@@ -6,7 +6,7 @@ namespace BODi.Performance.Tests.Benchmarks
 {
     public class ResolveAllFromTypeRepeated : SingleContainerBenchmarkBase
     {
-        [Params(10)]
+        [Params(100)]
         public int Repetitions { get; set; }
 
 
@@ -38,10 +38,11 @@ namespace BODi.Performance.Tests.Benchmarks
         [Benchmark(Description = "Current")]
         public object CurrentVersion()
         {
-            IEnumerable<IAllRegisteredFromType> obj = null;
+            List<IAllRegisteredFromType> obj = null;
             for (int i = 0; i < Repetitions; i++)
             {
-                obj = ContainerCurrent.ResolveAll<IAllRegisteredFromType>();
+                // current returns a yet unresolved IEnumerable, so we need to force resolution
+                obj = ContainerCurrent.ResolveAll<IAllRegisteredFromType>().ToList();
             }
 
             return obj;

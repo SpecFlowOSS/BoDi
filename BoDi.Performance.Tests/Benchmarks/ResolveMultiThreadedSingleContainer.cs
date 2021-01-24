@@ -36,8 +36,8 @@ namespace BoDi.Performance.Tests.Benchmarks
             {
                 for (int i = 0; i < Loops / ThreadCount; i++)
                 {
-                    _ = ContainerCurrent.ResolveAll<IAllRegisteredFromFactory>();
-                    _ = ContainerCurrent.ResolveAll<IAllRegisteredFromType>();
+                    _ = ContainerCurrent.ResolveAll<IAllRegisteredFromFactory>().ToList();
+                    _ = ContainerCurrent.ResolveAll<IAllRegisteredFromType>().ToList();
                     _ = ContainerCurrent.Resolve<FactoryRegistered>();
                     _ = ContainerCurrent.Resolve<TypeRegistered>();
                 }

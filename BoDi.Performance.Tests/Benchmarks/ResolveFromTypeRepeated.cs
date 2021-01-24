@@ -4,7 +4,7 @@ namespace BODi.Performance.Tests.Benchmarks
 {
     public class ResolveFromTypeRepeated : SingleContainerBenchmarkBase
     {
-        [Params(10)]
+        [Params(100)]
         public int Repetitions { get; set; }
 
 
@@ -14,7 +14,7 @@ namespace BODi.Performance.Tests.Benchmarks
             TypeRegistered obj = null;
             for (int i = 0; i < Repetitions; i++)
             {
-                obj = ContainerCurrent.Resolve<TypeRegistered>();
+                obj = Container14.Resolve<TypeRegistered>();
             }
 
             return obj;
@@ -26,7 +26,7 @@ namespace BODi.Performance.Tests.Benchmarks
             TypeRegistered obj = null;
             for (int i = 0; i < Repetitions; i++)
             {
-                obj = ContainerCurrent.Resolve<TypeRegistered>();
+                obj = Container1NextFlawed.Resolve<TypeRegistered>();
             }
 
             return obj;

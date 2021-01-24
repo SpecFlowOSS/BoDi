@@ -4,7 +4,7 @@ namespace BODi.Performance.Tests.Benchmarks
 {
     public class ResolveFromFactoryRepeated : SingleContainerBenchmarkBase
     {
-        [Params(10)]
+        [Params(100)]
         public int Repetitions { get; set; }
 
 
