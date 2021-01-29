@@ -329,7 +329,7 @@ namespace BoDi.Tests
         }
 
         [Test/*, ExpectedException(typeof(ObjectContainerException), ExpectedMessage = "Circular dependency", MatchType = MessageMatch.Contains)*/]
-        public void ShouldThrowExceptionForCircuarDepenencies()
+        public void ShouldThrowExceptionForCircularDependencies()
         {
             // given
 

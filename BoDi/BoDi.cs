@@ -55,12 +55,14 @@
  */
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Configuration;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Threading;
 
 namespace BoDi
 {
@@ -339,6 +341,61 @@ namespace BoDi
             }
         }
 
+        private sealed class ObjectPool
+        {
+            private readonly ConcurrentDictionary<RegistrationKey, Lazy<object>> objects = new ConcurrentDictionary<RegistrationKey, Lazy<object>>();
+
+            public object GetOrAdd(RegistrationKey registrationKey, ResolutionList resolutionPath, Func<string> getRegistrationDescription, Func<RegistrationKey, object> valueFactory)
+            {
+                if (resolutionPath.Contains(registrationKey))
+                {
+                    throw new ObjectContainerException("Circular dependency found! " + getRegistrationDescription(), resolutionPath.ToTypeList());
+                }
+
+                var lazy = objects.GetOrAdd(registrationKey, k => new Lazy<object>(() => valueFactory(k), LazyThreadSafetyMode.ExecutionAndPublication));
+
+                var value =  lazy.Value;
+                if (value is NonDisposableWrapper nonDisposableWrapper)
+                    value = nonDisposableWrapper.Object;
+
+                return value;
+            }
+
+            public void Clear(IObjectContainer container)
+            {
+                foreach (var obj in objects.Values
+                    .Where(lv => lv.IsValueCreated)
+                    .Select(lv => lv.Value)
+                    .OfType<IDisposable>()
+                    .Where(o => !ReferenceEquals(o, container)))
+                {
+                    obj.Dispose();
+                }
+
+                objects.Clear();
+            }
+        }
+
+        private sealed class ResolvedKeys
+        {
+            private readonly ConcurrentDictionary<RegistrationKey, object> registrations = new ConcurrentDictionary<RegistrationKey, object>();
+
+            public bool StartResolution(RegistrationKey registrationKey)
+            {
+                return registrations.TryAdd(registrationKey, null);
+            }
+
+            public void Clear()
+            {
+                registrations.Clear();
+            }
+
+            public bool IsResolutionStartedOrFinished(RegistrationKey registrationKey)
+            {
+                return registrations.ContainsKey(registrationKey);
+            }
+        }
+
         #region Registration types
 
         private enum SolvingStrategy
@@ -366,18 +423,18 @@ namespace BoDi
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
 
                 var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
-                object obj = container.GetPooledObject(pooledObjectKey);
 
-                if (obj == null)
-                {
-                    if (typeToConstruct.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
+                return container.objectPool.GetOrAdd(
+                    pooledObjectKey,
+                    resolutionPath,
+                    () => typeToConstruct.FullName,
+                    _ =>
+                    {
+                        if (typeToConstruct.IsInterface)
+                            throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
 
-                    obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
-                    container.objectPool.Add(pooledObjectKey, obj);
-                }
-
-                return obj;
+                        return container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+                    });
             }
 
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
@@ -408,15 +465,24 @@ namespace BoDi
         private class InstanceRegistration : IRegistration
         {
             private readonly object instance;
+            private readonly string name;
+            private readonly bool dispose;
 
-            public InstanceRegistration(object instance)
+            public InstanceRegistration(object instance, string name, bool dispose)
             {
                 this.instance = instance;
+                this.name = name;
+                this.dispose = dispose;
             }
 
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                return instance;
+                return container.objectPool.GetOrAdd(new RegistrationKey(instance.GetType(), name), resolutionPath, ToString, _ => GetPoolableInstance());
+            }
+
+            private object GetPoolableInstance()
+            {
+                return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
             }
 
             public override string ToString()
@@ -473,13 +539,11 @@ namespace BoDi
 
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var obj = container.GetPooledObject(keyToResolve);
-                if (obj == null)
-                {
-                    obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
-                    container.objectPool.Add(keyToResolve, obj);
-                }
-                return obj;
+                return container.objectPool.GetOrAdd(
+                    keyToResolve,
+                    resolutionPath,
+                    () => factoryDelegate.ToString(),
+                    _ => container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve));
             }
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -513,7 +577,7 @@ namespace BoDi
                 {
                     var convertedKey = ChangeType(namedRegistration.Name, keyType);
                     Debug.Assert(convertedKey != null);
-                    result.Add(convertedKey, container.Resolve(namedRegistration.Type, namedRegistration.Name));
+                    result.Add(convertedKey, container.ResolveInternal(namedRegistration.Type, new ResolutionList(), namedRegistration.Name));
                 }
 
                 return result;
@@ -533,9 +597,9 @@ namespace BoDi
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
-        private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
-        private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
-        private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
+        private readonly ConcurrentDictionary<RegistrationKey, IRegistration> registrations = new ConcurrentDictionary<RegistrationKey, IRegistration>();
+        private readonly ResolvedKeys resolvedKeys = new ResolvedKeys();
+        private readonly ObjectPool objectPool = new ObjectPool();
 
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
@@ -608,10 +672,7 @@ namespace BoDi
             if (key.Name != null)
             {
                 var dictKey = CreateNamedInstanceDictionaryKey(key.Type);
-                if (!registrations.ContainsKey(dictKey))
-                {
-                    registrations[dictKey] = new NamedInstanceDictionaryRegistration();
-                }
+                registrations.TryAdd(dictKey, new NamedInstanceDictionaryRegistration());
             }
         }
 
@@ -635,13 +696,10 @@ namespace BoDi
             AssertNotResolved(registrationKey);
 
             ClearRegistrations(registrationKey);
-            AddRegistration(registrationKey, new InstanceRegistration(instance));
-            objectPool[new RegistrationKey(instance.GetType(), name)] = GetPoolableInstance(instance, dispose);
-        }
-
-        private static object GetPoolableInstance(object instance, bool dispose)
-        {
-            return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
+            var instanceRegistration = new InstanceRegistration(instance, name, dispose);
+            AddRegistration(registrationKey, instanceRegistration);
+            // add the object to the pool to ensure it will be disposed if disposable and dispose is true, even if never resolved by the code.
+            _ = instanceRegistration.Resolve(this, registrationKey, new ResolutionList());
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class
@@ -696,13 +754,13 @@ namespace BoDi
         // ReSharper disable once UnusedParameter.Local
         private void AssertNotResolved(RegistrationKey interfaceType)
         {
-            if (resolvedKeys.Contains(interfaceType))
+            if (resolvedKeys.IsResolutionStartedOrFinished(interfaceType))
                 throw new ObjectContainerException("An object has been resolved for this interface already.", null);
         }
 
         private void ClearRegistrations(RegistrationKey registrationKey)
         {
-            registrations.Remove(registrationKey);
+            registrations.TryRemove(registrationKey, out _);
         }
 
 #if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
@@ -747,34 +805,29 @@ namespace BoDi
         public T Resolve<T>(string name)
         {
             Type typeToResolve = typeof(T);
-
-            object resolvedObject = Resolve(typeToResolve, name);
-
+            object resolvedObject = ResolveInternal(typeToResolve, new ResolutionList(), name);
             return (T)resolvedObject;
         }
 
         public object Resolve(Type typeToResolve, string name = null)
         {
-            return Resolve(typeToResolve, new ResolutionList(), name);
+            return ResolveInternal(typeToResolve, new ResolutionList(), name);
         }
 
         public IEnumerable<T> ResolveAll<T>() where T : class
         {
             return registrations
                 .Where(x => x.Key.Type == typeof(T))
-                .Select(x => Resolve (x.Key.Type, x.Key.Name) as T);
+                .Select(x => ResolveInternal(x.Key.Type, new ResolutionList(), x.Key.Name) as T);
         }
 
-        private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
+        private object ResolveInternal(Type typeToResolve, ResolutionList resolutionPath, string name)
         {
             AssertNotDisposed();
 
             var keyToResolve = new RegistrationKey(typeToResolve, name);
+            resolvedKeys.StartResolution(keyToResolve);
             object resolvedObject = ResolveObject(keyToResolve, resolutionPath);
-            if (!resolvedKeys.Contains(keyToResolve))
-            {
-                resolvedKeys.Add(keyToResolve);
-            }
             Debug.Assert(typeToResolve.IsInstanceOfType(resolvedObject));
             return resolvedObject;
         }
@@ -820,27 +873,6 @@ namespace BoDi
         private bool IsNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
         {
             return keyToResolve.Name == null && keyToResolve.Type.IsGenericType && keyToResolve.Type.GetGenericTypeDefinition() == typeof(IDictionary<,>);
-        }
-
-        private object GetPooledObject(RegistrationKey pooledObjectKey)
-        {
-            object obj;
-            if (GetObjectFromPool(pooledObjectKey, out obj))
-                return obj;
-
-            return null;
-        }
-
-        private bool GetObjectFromPool(RegistrationKey pooledObjectKey, out object obj)
-        {
-            if (!objectPool.TryGetValue(pooledObjectKey, out obj))
-                return false;
-
-            var nonDisposableWrapper = obj as NonDisposableWrapper;
-            if (nonDisposableWrapper != null)
-                obj = nonDisposableWrapper.Object;
-
-            return true;
         }
 
         private object ResolveObject(RegistrationKey keyToResolve, ResolutionList resolutionPath)
@@ -910,7 +942,7 @@ namespace BoDi
 
         private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
-            return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : Resolve(p.ParameterType, resolutionPath, null)).ToArray();
+            return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : ResolveInternal(p.ParameterType, resolutionPath, null)).ToArray();
         }
 
         private object ResolveRegisteredName(RegistrationKey keyToResolve)
@@ -944,10 +976,7 @@ namespace BoDi
         {
             isDisposed = true;
 
-            foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
-                obj.Dispose();
-
-            objectPool.Clear();
+            objectPool.Clear(this);
             registrations.Clear();
             resolvedKeys.Clear();
         }
