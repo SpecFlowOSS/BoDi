@@ -225,6 +225,7 @@ namespace BoDi
     public class ObjectContainer : IObjectContainer
     {
         private const string REGISTERED_NAME_PARAMETER_NAME = "registeredName";
+        private const string DISABLE_THREAD_SAFE_RESOLUTION = "DISABLE_THREAD_SAFE_RESOLUTION";
 
         /// <summary>
         /// A very simple immutable linked list of <see cref="Type"/>.
@@ -475,6 +476,9 @@ namespace BoDi
                 if (obj != null)
                     return obj;
 
+                if (ObjectContainer.DisableThreadSafeResolution)
+                    return factory();
+
                 if (Monitor.TryEnter(lockObject, ConcurrentObjectResolutionTimeout))
                 {
                     try
@@ -572,6 +576,14 @@ namespace BoDi
         private readonly ConcurrentDictionary<RegistrationKey, IRegistration> registrations = new ConcurrentDictionary<RegistrationKey, IRegistration>();
         private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
+
+        public static bool DisableThreadSafeResolution { get; set; }
+
+        static ObjectContainer()
+        {
+            DisableThreadSafeResolution =
+                !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(DISABLE_THREAD_SAFE_RESOLUTION));
+        }
 
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
