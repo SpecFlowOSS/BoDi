@@ -475,7 +475,7 @@ namespace BoDi
                 if (obj != null)
                     return obj;
 
-                if (Monitor.TryEnter(lockObject, new TimeSpan(0, 0, 1)))
+                if (Monitor.TryEnter(lockObject, ConcurrentObjectResolutionTimeout))
                 {
                     try
                     {
@@ -493,7 +493,7 @@ namespace BoDi
                     }
                 }
 
-                throw new ObjectContainerException("Potential Circular dependency.", resolutionPath.ToTypeList());
+                throw new ObjectContainerException("Concurrent object resolution timeout (potential circular dependency).", resolutionPath.ToTypeList());
             }
         }
 
@@ -576,6 +576,8 @@ namespace BoDi
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
 
+        public static TimeSpan ConcurrentObjectResolutionTimeout { get; set; } = TimeSpan.FromSeconds(1); 
+            
         public ObjectContainer(IObjectContainer baseContainer = null)
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))

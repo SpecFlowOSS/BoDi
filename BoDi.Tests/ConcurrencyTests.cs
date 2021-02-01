@@ -413,13 +413,56 @@ namespace BoDi.Tests
                 ApplyRegistrationStrategy(registration1, registrationStrategy);
                 ApplyRegistrationStrategy(registration2, registrationStrategy);
 
-                var thread1 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular1>(), "Potential Circular dependency"));
-                var thread2 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular2>(), "Potential Circular dependency"));
+                var thread1 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular1>(), "Concurrent object resolution timeout (potential circular dependency)."));
+                var thread2 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular2>(), "Concurrent object resolution timeout (potential circular dependency)."));
                 thread1.Start();
                 thread2.Start();
 
                 // try to wait until both object constructions are in progress (may not happen if no threading issue)
                 BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
+
+        [Test]
+        [NonParallelizable]
+        public void ShouldThrowConcurrentObjectResolutionTimeoutErrorIfResolutionBlocksLongerThanObjectResolutionTimeOut()
+        {
+            try
+            {
+                ObjectContainer.ConcurrentObjectResolutionTimeout = TimeSpan.FromMilliseconds(10);
+                IObjectContainer container = new ObjectContainer();
+                container.RegisterTypeAs<BlockingObject, BlockingObject>();
+
+                var thread1 = new Thread(unknown => Assert.That(() => container.Resolve<BlockingObject>(), Throws.Nothing));
+                var thread2 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingObject>(), "Concurrent object resolution timeout (potential circular dependency)."));
+
+                
+                // start first thread and wait until ctor already in progress
+                thread1.Start();
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+
+                // start second thread now, this should be blocked
+                thread2.Start();
+                // try to wait until second ctor is in progress (may not happen if no threading issue)
                 BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
 
                 // allow constructors to finish
