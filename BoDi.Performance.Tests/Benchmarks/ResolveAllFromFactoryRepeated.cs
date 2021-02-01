@@ -22,13 +22,13 @@ namespace BODi.Performance.Tests.Benchmarks
             return obj;
         }
 
-        [Benchmark(Description = "v1.Next-Flawed")]
-        public object Version_1_Next_Flawed()
+        [Benchmark(Description = "v1.BoDi_Concurrent_Dictionary_And_Lazy")]
+        public object Version_1_BoDi_Concurrent_Dictionary_And_Lazy()
         {
             IEnumerable<IAllRegisteredFromFactory> obj = null;
             for (int i = 0; i < Repetitions; i++)
             {
-                obj = Container1NextFlawed.ResolveAll<IAllRegisteredFromFactory>();
+                obj = Container1Concurrent_Dictionary_And_Lazy.ResolveAll<IAllRegisteredFromFactory>();
             }
 
             return obj;

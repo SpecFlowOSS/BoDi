@@ -10,10 +10,10 @@ namespace BODi.Performance.Tests.Benchmarks
             return Container14.Resolve<TypeRegistered>();
         }
 
-        [Benchmark(Description = "v1.Next-Flawed")]
-        public object Version_1_Next_Flawed()
+        [Benchmark(Description = "v1.BoDi_Concurrent_Dictionary_And_Lazy")]
+        public object Version_1_BoDi_Concurrent_Dictionary_And_Lazy()
         {
-            return Container1NextFlawed.Resolve<TypeRegistered>();
+            return Container1Concurrent_Dictionary_And_Lazy.Resolve<TypeRegistered>();
         }
 
         [Benchmark(Description = "Current")]

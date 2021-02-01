@@ -13,17 +13,17 @@ namespace BoDi.Performance.Tests.Benchmarks
         [Params(2048)]
         public int Loops { get; set; }
 
-        [Benchmark(Description = "v1.Next-Flawed")]
-        public void Version_1_Next_Flawed()
+        [Benchmark(Description = "v1.BoDi_Concurrent_Dictionary_And_Lazy")]
+        public void Version_1_BoDi_Concurrent_Dictionary_And_Lazy()
         {
             void Resolve(object _)
             {
                 for (int i = 0; i < Loops / ThreadCount; i++)
                 {
-                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromFactory>().ToList();
-                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromType>().ToList();
-                    _ = Container1NextFlawed.Resolve<FactoryRegistered>();
-                    _ = Container1NextFlawed.Resolve<TypeRegistered>();
+                    _ = Container1Concurrent_Dictionary_And_Lazy.ResolveAll<IAllRegisteredFromFactory>().ToList();
+                    _ = Container1Concurrent_Dictionary_And_Lazy.ResolveAll<IAllRegisteredFromType>().ToList();
+                    _ = Container1Concurrent_Dictionary_And_Lazy.Resolve<FactoryRegistered>();
+                    _ = Container1Concurrent_Dictionary_And_Lazy.Resolve<TypeRegistered>();
                 }
             }
             StartAndJoin(Resolve);
