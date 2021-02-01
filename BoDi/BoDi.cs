@@ -14,6 +14,7 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Change history
+ *   - Thread-safe object resolution
  *   - New 'instance per dependency' strategy added for type and factory registrations (by MKMZ)
  * 
  * v1.4
@@ -46,11 +47,12 @@
  * --------------
  * Note about thread safety
  * 
- * BoDi container is not reentrant and can't be used from different threads.
+ * BoDi container is not reentrant and can't be used from different threads without further considerations.
  * Typical user (Specflow) ensures it by allocating container per test thread and all feature- and scenario- containers as child containers.
  * The manual synchronization is not necessary for usual cases 
  * (using test-thread, feature or scenario containers and not creating multiple threads from the binding code).
- * 
+ * Thread-safe object resolution has been introduced to handle the rare cases when dependencies might be resolved from the shared global context concurrently.
+ *
  * More information here https://github.com/gasparnagy/BoDi/issues/27
  */
 using System;
