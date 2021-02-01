@@ -55,6 +55,47 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldBeAbleToResolveFromMultipleThreadsWhenImplicitRegisteredAsType()
+        {
+            try
+            {
+                IObjectContainer container = new ObjectContainer();
+
+                void Resolve(object _)
+                {
+                    Assert.That(() => container.Resolve<BlockingObject>(), Throws.Nothing);
+                }
+
+                var thread1 = new Thread(Resolve);
+                var thread2 = new Thread(Resolve);
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+
+                // allow constructors to finish
+                BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
+
+                // complete the threads
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+            }
+            finally
+            {
+                BlockingObject.ResetBlockingEvents();
+            }
+        }
+
+        [Test]
         public void ShouldBeAbleToResolveFromMultipleThreadsWhenRegisteredAsFactory(
             [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
             [Values(null, "Name")] string name)
@@ -360,28 +401,37 @@ namespace BoDi.Tests
         }
 
         [Test]
-        public void ShouldRejectRegistrationAsTypeOnceResolveStartedOnTheSameType(
-            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
-            [Values(null, "Name")] string name)
+        public void ShouldBeAbleToDetectCircularDependencyWhenResolvingParallel(
+            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy)
         {
             try
             {
                 IObjectContainer container = new ObjectContainer();
-                var registration = container.RegisterTypeAs<BlockingObject, BlockingObject>(name);
-                ApplyRegistrationStrategy(registration, registrationStrategy);
+                var registration1 = container.RegisterTypeAs<BlockingCircular1, BlockingCircular1>();
+                var registration2 = container.RegisterTypeAs<BlockingCircular2, BlockingCircular2>();
 
-                var thread = new Thread(_ => container.Resolve<BlockingObject>(name));
-                thread.Start();
-                // wait until the object constructions is in progress, should always succeed
-                Assert.That(BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond), Is.True);
-                
-                Assert.That(() => container.RegisterTypeAs<BlockingObject, BlockingObject>(name), Throws.InstanceOf<ObjectContainerException>());
-                
+                ApplyRegistrationStrategy(registration1, registrationStrategy);
+                ApplyRegistrationStrategy(registration2, registrationStrategy);
+
+                var thread1 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular1>(), "Potential Circular dependency"));
+                var thread2 = new Thread(unknown => Assert.Throws<ObjectContainerException>(() => container.Resolve<BlockingCircular2>(), "Potential Circular dependency"));
+                thread1.Start();
+                thread2.Start();
+
+                // try to wait until both object constructions are in progress (may not happen if no threading issue)
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+                BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond);
+
                 // allow constructors to finish
                 BlockingObject.ConstructorBlockers[0].Set();
+                BlockingObject.ConstructorBlockers[1].Set();
 
                 // complete the threads
-                if (!thread.Join(ForHalfASecond))
+                if (!thread1.Join(ForHalfASecond))
+                {
+                    Assert.Fail("Unable to complete resolution");
+                }
+                if (!thread2.Join(ForHalfASecond))
                 {
                     Assert.Fail("Unable to complete resolution");
                 }
@@ -392,105 +442,6 @@ namespace BoDi.Tests
             }
         }
 
-        [Test]
-        public void ShouldRejectRegistrationAsTypeOnceResolveAllStartedOnTheSameType(
-            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
-            [Values(null, "Name")] string name)
-        {
-            try
-            {
-                IObjectContainer container = new ObjectContainer();
-                var registration = container.RegisterTypeAs<BlockingObject, BlockingObject>(name);
-                ApplyRegistrationStrategy(registration, registrationStrategy);
-
-                var thread = new Thread(_ => container.ResolveAll<BlockingObject>().ToList());
-                thread.Start();
-                // wait until the object constructions is in progress, should always succeed
-                Assert.That(BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond), Is.True);
-                
-                Assert.That(() => container.RegisterTypeAs<BlockingObject, BlockingObject>(name), Throws.InstanceOf<ObjectContainerException>());
-                
-                // allow constructors to finish
-                BlockingObject.ConstructorBlockers[0].Set();
-
-                // complete the threads
-                if (!thread.Join(ForHalfASecond))
-                {
-                    Assert.Fail("Unable to complete resolution");
-                }
-            }
-            finally
-            {
-                BlockingObject.ResetBlockingEvents();
-            }
-        }
-
-        [Test]
-        public void ShouldRejectRegistrationAsFactoryOnceResolveStartedOnTheSameType(
-            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
-            [Values(null, "Name")] string name)
-        {
-            try
-            {
-                IObjectContainer container = new ObjectContainer();
-                var registration = container.RegisterFactoryAs(_ => new BlockingObject(), name);
-                ApplyRegistrationStrategy(registration, registrationStrategy);
-
-                var thread = new Thread(_ => container.Resolve<BlockingObject>(name));
-                thread.Start();
-                // wait until the object constructions is in progress, should always succeed
-                Assert.That(BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond), Is.True);
-                
-                Assert.That(() => container.RegisterTypeAs<BlockingObject, BlockingObject>(name), Throws.InstanceOf<ObjectContainerException>());
-                
-                // allow constructors to finish
-                BlockingObject.ConstructorBlockers[0].Set();
-
-                // complete the threads
-                if (!thread.Join(ForHalfASecond))
-                {
-                    Assert.Fail("Unable to complete resolution");
-                }
-            }
-            finally
-            {
-                BlockingObject.ResetBlockingEvents();
-            }
-        }
-
-        [Test]
-        public void ShouldRejectRegistrationAsFactoryOnceResolveAllStartedOnTheSameType(
-            [Values(RegistrationStrategy.PerContext, RegistrationStrategy.PerDependency)] RegistrationStrategy registrationStrategy,
-            [Values(null, "Name")] string name)
-        {
-            try
-            {
-                IObjectContainer container = new ObjectContainer();
-                var registration = container.RegisterFactoryAs(_ => new BlockingObject(), name);
-                ApplyRegistrationStrategy(registration, registrationStrategy);
-
-                var thread = new Thread(_ => container.ResolveAll<BlockingObject>().ToList());
-                thread.Start();
-                // wait until the object constructions is in progress, should always succeed
-                Assert.That(BlockingObject.ObjectsCreated.WaitOne(ForHalfASecond), Is.True);
-                
-                Assert.That(() => container.RegisterTypeAs<BlockingObject, BlockingObject>(name), Throws.InstanceOf<ObjectContainerException>());
-                
-                // allow constructors to finish
-                BlockingObject.ConstructorBlockers[0].Set();
-
-                // complete the threads
-                if (!thread.Join(ForHalfASecond))
-                {
-                    Assert.Fail("Unable to complete resolution");
-                }
-            }
-            finally
-            {
-                BlockingObject.ResetBlockingEvents();
-            }
-        }
-        
         private void ApplyRegistrationStrategy(IStrategyRegistration registration, RegistrationStrategy registrationStrategy)
         {
             switch (registrationStrategy)
@@ -548,6 +499,20 @@ namespace BoDi.Tests
                 var evt = ConstructorBlockers[index];
                 ObjectsCreated.Release(1);
                 evt.WaitOne();
+            }
+        }
+
+        private class BlockingCircular1 : BlockingObject
+        {
+            public BlockingCircular1(BlockingCircular2 dep)
+            {
+            }
+        }
+
+        private class BlockingCircular2 : BlockingObject
+        {
+            public BlockingCircular2(BlockingCircular1 dep)
+            {
             }
         }
 
