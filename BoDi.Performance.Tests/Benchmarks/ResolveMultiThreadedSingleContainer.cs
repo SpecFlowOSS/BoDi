@@ -20,8 +20,8 @@ namespace BoDi.Performance.Tests.Benchmarks
             {
                 for (int i = 0; i < Loops / ThreadCount; i++)
                 {
-                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromFactory>();
-                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromType>();
+                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromFactory>().ToList();
+                    _ = Container1NextFlawed.ResolveAll<IAllRegisteredFromType>().ToList();
                     _ = Container1NextFlawed.Resolve<FactoryRegistered>();
                     _ = Container1NextFlawed.Resolve<TypeRegistered>();
                 }
