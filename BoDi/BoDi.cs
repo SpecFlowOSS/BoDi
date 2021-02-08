@@ -14,6 +14,7 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Change history
+ * V1.5
  *   - Thread-safe object resolution
  *   - New 'instance per dependency' strategy added for type and factory registrations (by MKMZ)
  * 
