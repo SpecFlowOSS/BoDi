@@ -14,8 +14,6 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Change history
- * V1.5
- *   - Thread-safe object resolution
  *   - New 'instance per dependency' strategy added for type and factory registrations (by MKMZ)
  * 
  * v1.4
@@ -48,26 +46,23 @@
  * --------------
  * Note about thread safety
  * 
- * BoDi container is not reentrant and can't be used from different threads without further considerations.
+ * BoDi container is not reentrant and can't be used from different threads.
  * Typical user (Specflow) ensures it by allocating container per test thread and all feature- and scenario- containers as child containers.
  * The manual synchronization is not necessary for usual cases 
  * (using test-thread, feature or scenario containers and not creating multiple threads from the binding code).
- * Thread-safe object resolution has been introduced to handle the rare cases when dependencies might be resolved from the shared global context concurrently.
- *
+ * 
  * More information here https://github.com/gasparnagy/BoDi/issues/27
  */
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Configuration;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
-using System.Threading;
 
-namespace BoDi
+namespace BoDi1_4
 {
 #if !BODI_LIMITEDRUNTIME
     [Serializable]
@@ -95,7 +90,7 @@ namespace BoDi
         }
     }
 
-    public interface IObjectContainer : IDisposable
+    public interface IObjectContainer: IDisposable
     {
         /// <summary>
         /// Fired when a new object is created directly by the container. It is not invoked for resolving instance and factory registrations.
@@ -228,7 +223,6 @@ namespace BoDi
     public class ObjectContainer : IObjectContainer
     {
         private const string REGISTERED_NAME_PARAMETER_NAME = "registeredName";
-        private const string DISABLE_THREAD_SAFE_RESOLUTION = "DISABLE_THREAD_SAFE_RESOLUTION";
 
         /// <summary>
         /// A very simple immutable linked list of <see cref="Type"/>.
@@ -361,7 +355,6 @@ namespace BoDi
         private class TypeRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Type implementationType;
-            private readonly object syncRoot = new object();
 
             public TypeRegistration(Type implementationType)
             {
@@ -373,22 +366,19 @@ namespace BoDi
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
 
                 var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
+                object obj = container.GetPooledObject(pooledObjectKey);
 
-                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(pooledObjectKey), () =>
+                if (obj == null)
                 {
                     if (typeToConstruct.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve,
-                            resolutionPath.ToTypeList());
+                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
 
-                    var obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+                    obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
-                    return obj;
-                }, resolutionPath);
+                }
 
-                return result;
+                return obj;
             }
-
-
 
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -471,43 +461,11 @@ namespace BoDi
                 solvingStrategy = SolvingStrategy.PerContext;
                 return this;
             }
-
-            protected static object ExecuteWithLock(object lockObject, Func<object> getter, Func<object> factory, ResolutionList resolutionPath)
-            {
-                var obj = getter();
-
-                if (obj != null)
-                    return obj;
-
-                if (ObjectContainer.DisableThreadSafeResolution)
-                    return factory();
-
-                if (Monitor.TryEnter(lockObject, ConcurrentObjectResolutionTimeout))
-                {
-                    try
-                    {
-                        obj = getter();
-
-                        if (obj != null)
-                            return obj;
-
-                        obj = factory();
-                        return obj;
-                    }
-                    finally
-                    {
-                        Monitor.Exit(lockObject);
-                    }
-                }
-
-                throw new ObjectContainerException("Concurrent object resolution timeout (potential circular dependency).", resolutionPath.ToTypeList());
-            }
         }
 
         private class FactoryRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Delegate factoryDelegate;
-            private readonly object syncRoot = new object();
             public FactoryRegistration(Delegate factoryDelegate)
             {
                 this.factoryDelegate = factoryDelegate;
@@ -515,14 +473,13 @@ namespace BoDi
 
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(keyToResolve), () =>
+                var obj = container.GetPooledObject(keyToResolve);
+                if (obj == null)
                 {
-                    var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                    obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
                     container.objectPool.Add(keyToResolve, obj);
-                    return obj;
-                }, resolutionPath);
-
-                return result;
+                }
+                return obj;
             }
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -576,24 +533,14 @@ namespace BoDi
 
         private bool isDisposed = false;
         private readonly ObjectContainer baseContainer;
-        private readonly ConcurrentDictionary<RegistrationKey, IRegistration> registrations = new ConcurrentDictionary<RegistrationKey, IRegistration>();
+        private readonly Dictionary<RegistrationKey, IRegistration> registrations = new Dictionary<RegistrationKey, IRegistration>();
         private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
         private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
-
-        public static bool DisableThreadSafeResolution { get; set; }
-
-        static ObjectContainer()
-        {
-            DisableThreadSafeResolution =
-                !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(DISABLE_THREAD_SAFE_RESOLUTION));
-        }
 
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
 
-        public static TimeSpan ConcurrentObjectResolutionTimeout { get; set; } = TimeSpan.FromSeconds(1); 
-            
-        public ObjectContainer(IObjectContainer baseContainer = null)
+        public ObjectContainer(IObjectContainer baseContainer = null) 
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))
                 throw new ArgumentException("Base container must be an ObjectContainer", "baseContainer");
@@ -658,24 +605,13 @@ namespace BoDi
         {
             registrations[key] = registration;
 
-            AddNamedDictionaryRegistration(key);
-        }
-
-        private IRegistration EnsureImplicitRegistration(RegistrationKey key)
-        {
-           var registration =  registrations.GetOrAdd(key, (registrationKey =>  new TypeRegistration(registrationKey.Type)));
-
-           AddNamedDictionaryRegistration(key);
-
-           return registration;
-        }
-
-        private void AddNamedDictionaryRegistration(RegistrationKey key)
-        {
             if (key.Name != null)
             {
                 var dictKey = CreateNamedInstanceDictionaryKey(key.Type);
-                registrations.TryAdd(dictKey, new NamedInstanceDictionaryRegistration());
+                if (!registrations.ContainsKey(dictKey))
+                {
+                    registrations[dictKey] = new NamedInstanceDictionaryRegistration();
+                }
             }
         }
 
@@ -766,7 +702,7 @@ namespace BoDi
 
         private void ClearRegistrations(RegistrationKey registrationKey)
         {
-            registrations.TryRemove(registrationKey, out IRegistration result);
+            registrations.Remove(registrationKey);
         }
 
 #if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
@@ -826,7 +762,7 @@ namespace BoDi
         {
             return registrations
                 .Where(x => x.Key.Type == typeof(T))
-                .Select(x => Resolve(x.Key.Type, x.Key.Name) as T);
+                .Select(x => Resolve (x.Key.Type, x.Key.Name) as T);
         }
 
         private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
@@ -871,13 +807,13 @@ namespace BoDi
 
         private bool IsDefaultNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
         {
-            return IsNamedInstanceDictionaryKey(keyToResolve) &&
+            return IsNamedInstanceDictionaryKey(keyToResolve) && 
                    keyToResolve.Type.GetGenericArguments()[0] == typeof(string);
         }
 
         private bool IsSpecialNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
         {
-            return IsNamedInstanceDictionaryKey(keyToResolve) &&
+            return IsNamedInstanceDictionaryKey(keyToResolve) && 
                    keyToResolve.Type.GetGenericArguments()[0].IsEnum;
         }
 
@@ -913,17 +849,17 @@ namespace BoDi
                 throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath.ToTypeList());
 
             var registrationResult = GetRegistrationResult(keyToResolve);
-
+            var isImplicitTypeRegistration = registrationResult == null;
             var registrationToUse = registrationResult ??
-                                    new KeyValuePair<ObjectContainer, IRegistration>(this, EnsureImplicitRegistration(keyToResolve));
+                new KeyValuePair<ObjectContainer, IRegistration>(this, new TypeRegistration(keyToResolve.Type));
 
-            var resolutionPathForResolve = registrationToUse.Key == this ?
+            var resolutionPathForResolve = registrationToUse.Key == this ? 
                 resolutionPath : new ResolutionList();
             var result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
-           
+            if (isImplicitTypeRegistration) // upon successful implicit registration, we register the rule, so that sub context can also get the same resolved value
+                AddRegistration(keyToResolve, registrationToUse.Value);
             return result;
         }
-
 
         private object CreateObject(Type type, ResolutionList resolutionPath, RegistrationKey keyToResolve)
         {
@@ -984,7 +920,7 @@ namespace BoDi
 
         private bool IsRegisteredNameParameter(ParameterInfo parameterInfo)
         {
-            return parameterInfo.ParameterType == typeof(string) &&
+            return parameterInfo.ParameterType == typeof (string) &&
                    parameterInfo.Name.Equals(REGISTERED_NAME_PARAMETER_NAME);
         }
 
@@ -1050,11 +986,11 @@ namespace BoDi
         public void Add(string implementationType, string interfaceType, string name = null)
         {
             BaseAdd(new ContainerRegistrationConfigElement
-            {
-                Implementation = implementationType,
-                Interface = interfaceType,
-                Name = name
-            });
+                        {
+                            Implementation = implementationType,
+                            Interface = interfaceType,
+                            Name = name
+                        });
         }
     }
 
