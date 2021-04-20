@@ -6,19 +6,21 @@ namespace BODi.Performance.Tests.Benchmarks
 {
     [HtmlExporter]
     [MarkdownExporterAttribute.GitHub]
+    [MemoryDiagnoser]
     [MinColumn, MaxColumn, MeanColumn, MedianColumn, RankColumn]
     [Orderer(SummaryOrderPolicy.FastestToSlowest, MethodOrderPolicy.Declared)]
     public abstract class SingleContainerBenchmarkBase
     {
-        protected internal IObjectContainer ContainerCurrent;
-        protected internal BoDi1_4.IObjectContainer Container14;
-        protected internal BoDi_Concurrent_Dictionary_And_Lazy.IObjectContainer Container1Concurrent_Dictionary_And_Lazy;
+        protected internal ObjectContainer ContainerCurrent;
+        protected internal BoDi1_4.ObjectContainer Container14;
+        protected internal BoDi_Concurrent_Dictionary_And_Lazy.ObjectContainer Container1Concurrent_Dictionary_And_Lazy;
 
         [GlobalSetup]
         public void Setup()
         {
             Container14 = new BoDi1_4.ObjectContainer();
             Container14.RegisterFactoryAs(_ => new FactoryRegistered());
+            Container14.RegisterTypeAs(typeof(GenericRegistered<>), typeof(IGenericRegistered<>));
             Container14.RegisterTypeAs<TypeRegistered, TypeRegistered>();
             Container14.RegisterTypeAs<AllRegistered1, IAllRegisteredFromType>();
             Container14.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
@@ -32,6 +34,7 @@ namespace BODi.Performance.Tests.Benchmarks
 
             Container1Concurrent_Dictionary_And_Lazy = new BoDi_Concurrent_Dictionary_And_Lazy.ObjectContainer();
             Container1Concurrent_Dictionary_And_Lazy.RegisterFactoryAs(_ => new FactoryRegistered());
+            Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs(typeof(GenericRegistered<>), typeof(IGenericRegistered<>));
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<TypeRegistered, TypeRegistered>();
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<AllRegistered1, IAllRegisteredFromType>();
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
@@ -44,6 +47,7 @@ namespace BODi.Performance.Tests.Benchmarks
 
             ContainerCurrent = new ObjectContainer();
             ContainerCurrent.RegisterFactoryAs(_ => new FactoryRegistered());
+            ContainerCurrent.RegisterTypeAs(typeof(GenericRegistered<>), typeof(IGenericRegistered<>));
             ContainerCurrent.RegisterTypeAs<TypeRegistered, TypeRegistered>();
             ContainerCurrent.RegisterTypeAs<AllRegistered1, IAllRegisteredFromType>();
             ContainerCurrent.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
@@ -53,8 +57,11 @@ namespace BODi.Performance.Tests.Benchmarks
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered2());
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered4());
-
         }
+
+        protected internal interface IGenericRegistered<T> { }
+
+        protected internal class GenericRegistered<T> : IGenericRegistered<T> { }
 
         protected internal class FactoryRegistered { }
 
