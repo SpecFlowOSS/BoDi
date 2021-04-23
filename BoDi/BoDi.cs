@@ -358,10 +358,9 @@ namespace BoDi
             object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath);
         }
 
-        private class TypeRegistration : RegistrationWithStrategy, IRegistration
+        private sealed class TypeRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Type implementationType;
-            private readonly object syncRoot = new object();
 
             public TypeRegistration(Type implementationType)
             {
@@ -371,42 +370,69 @@ namespace BoDi
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToConstruct = GetTypeToConstruct(keyToResolve);
-
                 var pooledObjectKey = new RegistrationKey(typeToConstruct, keyToResolve.Name);
 
-                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(pooledObjectKey), () =>
+                if (container.TryGetObjectFromPool(pooledObjectKey, out var obj))
                 {
-                    if (typeToConstruct.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve,
-                            resolutionPath.ToTypeList());
+                    return obj;
+                }
 
-                    var obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+                if (ObjectContainer.DisableThreadSafeResolution)
+                {
+                    obj = InternalResolveObject(container, keyToResolve, resolutionPath, typeToConstruct);
                     container.objectPool.Add(pooledObjectKey, obj);
                     return obj;
-                }, resolutionPath);
+                }
 
-                return result;
+                if (Monitor.TryEnter(this, ConcurrentObjectResolutionTimeout))
+                {
+                    try
+                    {
+                        if (!container.TryGetObjectFromPool(pooledObjectKey, out obj))
+                        {
+                            obj = InternalResolveObject(container, keyToResolve, resolutionPath, typeToConstruct);
+                            container.objectPool.Add(pooledObjectKey, obj);
+                            return obj;
+                        }
+                        return obj;
+                    }
+                    finally
+                    {
+                        Monitor.Exit(this);
+                    }
+                }
+
+                throw new ObjectContainerException("Concurrent object resolution timeout (potential circular dependency).", resolutionPath.ToTypeList());
             }
-
-
 
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var typeToConstruct = GetTypeToConstruct(keyToResolve);
+                return InternalResolveObject(container, keyToResolve, resolutionPath, GetTypeToConstruct(keyToResolve));
+            }
+
+            private static object InternalResolveObject(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath, Type typeToConstruct)
+            {
                 if (typeToConstruct.IsInterface)
-                    throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
+                {
+                    ThrowInterfaceResolveException(keyToResolve, resolutionPath);
+                }
                 return container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+
+                void ThrowInterfaceResolveException(RegistrationKey key, ResolutionList path)
+                {
+                    throw new ObjectContainerException("Interface cannot be resolved: " + key, path.ToTypeList());
+                }
             }
 
             private Type GetTypeToConstruct(RegistrationKey keyToResolve)
             {
                 var targetType = implementationType;
-                if (targetType.IsGenericTypeDefinition)
+                if (!targetType.IsGenericTypeDefinition)
                 {
-                    var typeArgs = keyToResolve.Type.GetGenericArguments();
-                    targetType = targetType.MakeGenericType(typeArgs);
+                    return targetType;
                 }
-                return targetType;
+
+                return targetType.MakeGenericType(keyToResolve.Type.GetGenericArguments());
             }
 
             public override string ToString()
@@ -415,7 +441,7 @@ namespace BoDi
             }
         }
 
-        private class InstanceRegistration : IRegistration
+        private sealed class InstanceRegistration : IRegistration
         {
             private readonly object instance;
 
@@ -447,13 +473,15 @@ namespace BoDi
 
         private abstract class RegistrationWithStrategy : IStrategyRegistration
         {
-            protected SolvingStrategy solvingStrategy = SolvingStrategy.PerContext;
-            public virtual object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+            private SolvingStrategy solvingStrategy = SolvingStrategy.PerContext;
+
+            public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 if (solvingStrategy == SolvingStrategy.PerDependency)
                 {
                     return ResolvePerDependency(container, keyToResolve, resolutionPath);
                 }
+
                 return ResolvePerContext(container, keyToResolve, resolutionPath);
             }
 
@@ -471,43 +499,12 @@ namespace BoDi
                 solvingStrategy = SolvingStrategy.PerContext;
                 return this;
             }
-
-            protected static object ExecuteWithLock(object lockObject, Func<object> getter, Func<object> factory, ResolutionList resolutionPath)
-            {
-                var obj = getter();
-
-                if (obj != null)
-                    return obj;
-
-                if (ObjectContainer.DisableThreadSafeResolution)
-                    return factory();
-
-                if (Monitor.TryEnter(lockObject, ConcurrentObjectResolutionTimeout))
-                {
-                    try
-                    {
-                        obj = getter();
-
-                        if (obj != null)
-                            return obj;
-
-                        obj = factory();
-                        return obj;
-                    }
-                    finally
-                    {
-                        Monitor.Exit(lockObject);
-                    }
-                }
-
-                throw new ObjectContainerException("Concurrent object resolution timeout (potential circular dependency).", resolutionPath.ToTypeList());
-            }
         }
 
-        private class FactoryRegistration : RegistrationWithStrategy, IRegistration
+        private sealed class FactoryRegistration : RegistrationWithStrategy, IRegistration
         {
             private readonly Delegate factoryDelegate;
-            private readonly object syncRoot = new object();
+
             public FactoryRegistration(Delegate factoryDelegate)
             {
                 this.factoryDelegate = factoryDelegate;
@@ -515,22 +512,55 @@ namespace BoDi
 
             protected override object ResolvePerContext(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(keyToResolve), () =>
+                if (container.TryGetObjectFromPool(keyToResolve, out var obj))
                 {
-                    var obj = container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                    return obj;
+                }
+
+                if (ObjectContainer.DisableThreadSafeResolution)
+                {
+                    obj = InvokeFactoryDelegate(container, factoryDelegate, resolutionPath, keyToResolve);
                     container.objectPool.Add(keyToResolve, obj);
                     return obj;
-                }, resolutionPath);
+                }
 
-                return result;
+                if (Monitor.TryEnter(this, ConcurrentObjectResolutionTimeout))
+                {
+                    try
+                    {
+                        if (!container.TryGetObjectFromPool(keyToResolve, out obj))
+                        {
+                            obj = InvokeFactoryDelegate(container, factoryDelegate, resolutionPath, keyToResolve);
+                            container.objectPool.Add(keyToResolve, obj);
+                            return obj;
+                        }
+                        return obj;
+                    }
+                    finally
+                    {
+                        Monitor.Exit(this);
+                    }
+                }
+
+                throw new ObjectContainerException("Concurrent object resolution timeout (potential circular dependency).", resolutionPath.ToTypeList());
             }
+
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                return container.InvokeFactoryDelegate(factoryDelegate, resolutionPath, keyToResolve);
+                return InvokeFactoryDelegate(container, factoryDelegate, resolutionPath, keyToResolve);
+            }
+
+            private static object InvokeFactoryDelegate(ObjectContainer container, Delegate factoryDelegate, ResolutionList resolutionPath, RegistrationKey keyToResolve)
+            {
+                if (resolutionPath.Contains(keyToResolve))
+                    throw new ObjectContainerException("Circular dependency found! " + factoryDelegate.ToString(), resolutionPath.ToTypeList());
+
+                var args = container.ResolveArguments(factoryDelegate.Method.GetParameters(), keyToResolve, resolutionPath.AddToEnd(keyToResolve, null));
+                return factoryDelegate.DynamicInvoke(args);
             }
         }
 
-        private class NonDisposableWrapper
+        private sealed class NonDisposableWrapper
         {
             public object Object { get; private set; }
 
@@ -540,7 +570,7 @@ namespace BoDi
             }
         }
 
-        private class NamedInstanceDictionaryRegistration : IRegistration
+        private sealed class NamedInstanceDictionaryRegistration : IRegistration
         {
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
@@ -562,7 +592,7 @@ namespace BoDi
                 return result;
             }
 
-            private object ChangeType(string name, Type keyType)
+            private static object ChangeType(string name, Type keyType)
             {
                 if (keyType.IsEnum)
                     return Enum.Parse(keyType, name, true);
@@ -886,23 +916,17 @@ namespace BoDi
             return keyToResolve.Name == null && keyToResolve.Type.IsGenericType && keyToResolve.Type.GetGenericTypeDefinition() == typeof(IDictionary<,>);
         }
 
-        private object GetPooledObject(RegistrationKey pooledObjectKey)
-        {
-            object obj;
-            if (GetObjectFromPool(pooledObjectKey, out obj))
-                return obj;
-
-            return null;
-        }
-
-        private bool GetObjectFromPool(RegistrationKey pooledObjectKey, out object obj)
+        private bool TryGetObjectFromPool(RegistrationKey pooledObjectKey, out object obj)
         {
             if (!objectPool.TryGetValue(pooledObjectKey, out obj))
+            {
                 return false;
+            }
 
-            var nonDisposableWrapper = obj as NonDisposableWrapper;
-            if (nonDisposableWrapper != null)
-                obj = nonDisposableWrapper.Object;
+            if (obj is NonDisposableWrapper wrapper)
+            {
+                obj = wrapper.Object;
+            }
 
             return true;
         }
@@ -961,15 +985,6 @@ namespace BoDi
             var eventHandler = ObjectCreated;
             if (eventHandler != null)
                 eventHandler(obj);
-        }
-
-        private object InvokeFactoryDelegate(Delegate factoryDelegate, ResolutionList resolutionPath, RegistrationKey keyToResolve)
-        {
-            if (resolutionPath.Contains(keyToResolve))
-                throw new ObjectContainerException("Circular dependency found! " + factoryDelegate.ToString(), resolutionPath.ToTypeList());
-
-            var args = ResolveArguments(factoryDelegate.Method.GetParameters(), keyToResolve, resolutionPath.AddToEnd(keyToResolve, null));
-            return factoryDelegate.DynamicInvoke(args);
         }
 
         private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
