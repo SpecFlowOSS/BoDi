@@ -924,32 +924,44 @@ namespace BoDi
             return result;
         }
 
-
         private object CreateObject(Type type, ResolutionList resolutionPath, RegistrationKey keyToResolve)
         {
             var ctors = type.GetConstructors();
             if (ctors.Length == 0)
+            {
                 ctors = type.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
+            }
 
             Debug.Assert(ctors.Length > 0, "Class must have a constructor!");
 
-            int maxParamCount = ctors.Max(ctor => ctor.GetParameters().Length);
-            var maxParamCountCtors = ctors.Where(ctor => ctor.GetParameters().Length == maxParamCount).ToArray();
-
-            object obj;
-            if (maxParamCountCtors.Length == 1)
+            int maxLength = -1;
+            ConstructorInfo maxCtor = null;
+            ParameterInfo[] maxParameterInfos = null;
+            bool sameLength = false;
+            foreach (var ctor in ctors)
             {
-                ConstructorInfo ctor = maxParamCountCtors[0];
-                if (resolutionPath.Contains(keyToResolve))
-                    throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath.ToTypeList());
-
-                var args = ResolveArguments(ctor.GetParameters(), keyToResolve, resolutionPath.AddToEnd(keyToResolve, type));
-                obj = ctor.Invoke(args);
+                var parameterInfos = ctor.GetParameters();
+                if (maxLength < parameterInfos.Length)
+                {
+                    maxLength = parameterInfos.Length;
+                    maxCtor = ctor;
+                    maxParameterInfos = parameterInfos;
+                    sameLength = false;
+                }
+                else if (maxLength == parameterInfos.Length)
+                {
+                    sameLength = true;
+                }
             }
-            else
-            {
+
+            if (sameLength)
                 throw new ObjectContainerException("Multiple public constructors with same maximum parameter count are not supported! " + type.FullName, resolutionPath.ToTypeList());
-            }
+
+            if (resolutionPath != null && resolutionPath.Contains(keyToResolve))
+                throw new ObjectContainerException("Circular dependency found! " + type.FullName, resolutionPath.ToTypeList());
+
+            var args = ResolveArguments(maxParameterInfos, keyToResolve, resolutionPath);
+            var obj = maxCtor.Invoke(args);
 
             OnObjectCreated(obj);
 
@@ -972,17 +984,30 @@ namespace BoDi
             return factoryDelegate.DynamicInvoke(args);
         }
 
-        private object[] ResolveArguments(IEnumerable<ParameterInfo> parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
+        private static readonly object[] NoArgumentArray = new object[0];
+        private object[] ResolveArguments(ParameterInfo[] parameters, RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
-            return parameters.Select(p => IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : Resolve(p.ParameterType, resolutionPath, null)).ToArray();
+            if (parameters.Length == 0)
+            {
+                return NoArgumentArray;
+            }
+
+            var args = new object[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                args[i] = IsRegisteredNameParameter(p) ? ResolveRegisteredName(keyToResolve) : Resolve(p.ParameterType, resolutionPath, null);
+            }
+
+            return args;
         }
 
-        private object ResolveRegisteredName(RegistrationKey keyToResolve)
+        private static object ResolveRegisteredName(RegistrationKey keyToResolve)
         {
             return keyToResolve.Name;
         }
 
-        private bool IsRegisteredNameParameter(ParameterInfo parameterInfo)
+        private static bool IsRegisteredNameParameter(ParameterInfo parameterInfo)
         {
             return parameterInfo.ParameterType == typeof(string) &&
                    parameterInfo.Name.Equals(REGISTERED_NAME_PARAMETER_NAME);
