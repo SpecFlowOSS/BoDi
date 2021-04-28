@@ -64,6 +64,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -542,6 +543,10 @@ namespace BoDi
 
         private class NamedInstanceDictionaryRegistration : IRegistration
         {
+            public static NamedInstanceDictionaryRegistration Instance = new NamedInstanceDictionaryRegistration();
+
+            private NamedInstanceDictionaryRegistration() { }
+
             public object Resolve(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
                 var typeToResolve = keyToResolve.Type;
@@ -606,15 +611,12 @@ namespace BoDi
 
         public IStrategyRegistration RegisterTypeAs<TInterface>(Type implementationType, string name = null) where TInterface : class
         {
-            Type interfaceType = typeof(TInterface);
-            return RegisterTypeAs(implementationType, interfaceType, name);
+            return RegisterTypeAs(implementationType, typeof(TInterface), name);
         }
 
         public IStrategyRegistration RegisterTypeAs<TType, TInterface>(string name = null) where TType : class, TInterface
         {
-            Type interfaceType = typeof(TInterface);
-            Type implementationType = typeof(TType);
-            return RegisterTypeAs(implementationType, interfaceType, name);
+            return RegisterTypeAs(typeof(TType), typeof(TInterface), name);
         }
 
         public IStrategyRegistration RegisterTypeAs(Type implementationType, Type interfaceType)
@@ -624,7 +626,7 @@ namespace BoDi
             return RegisterTypeAs(implementationType, interfaceType, null);
         }
 
-        private bool IsValidTypeMapping(Type implementationType, Type interfaceType)
+        private static bool IsValidTypeMapping(Type implementationType, Type interfaceType)
         {
             if (interfaceType.IsAssignableFrom(implementationType))
                 return true;
@@ -648,19 +650,6 @@ namespace BoDi
                              .Concat(GetBaseTypes(type.BaseType));
         }
 
-
-        private RegistrationKey CreateNamedInstanceDictionaryKey(Type targetType)
-        {
-            return new RegistrationKey(typeof(IDictionary<,>).MakeGenericType(typeof(string), targetType), null);
-        }
-
-        private void AddRegistration(RegistrationKey key, IRegistration registration)
-        {
-            registrations[key] = registration;
-
-            AddNamedDictionaryRegistration(key);
-        }
-
         private IRegistration EnsureImplicitRegistration(RegistrationKey key)
         {
            var registration =  registrations.GetOrAdd(key, (registrationKey =>  new TypeRegistration(registrationKey.Type)));
@@ -670,47 +659,58 @@ namespace BoDi
            return registration;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void AddNamedDictionaryRegistration(RegistrationKey key)
         {
             if (key.Name != null)
             {
                 var dictKey = CreateNamedInstanceDictionaryKey(key.Type);
-                registrations.TryAdd(dictKey, new NamedInstanceDictionaryRegistration());
+                registrations.TryAdd(dictKey, NamedInstanceDictionaryRegistration.Instance);
             }
+        }
+
+        private static RegistrationKey CreateNamedInstanceDictionaryKey(Type targetType)
+        {
+            return new RegistrationKey(typeof(IDictionary<,>).MakeGenericType(typeof(string), targetType), null);
         }
 
         private IStrategyRegistration RegisterTypeAs(Type implementationType, Type interfaceType, string name)
         {
-            var registrationKey = new RegistrationKey(interfaceType, name);
-            AssertNotResolved(registrationKey);
-
-            ClearRegistrations(registrationKey);
             var typeRegistration = new TypeRegistration(implementationType);
-            AddRegistration(registrationKey, typeRegistration);
-
+            AddRegistration(interfaceType, name, typeRegistration);
             return typeRegistration;
         }
 
-        public void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false)
+        private void AddRegistration(Type interfaceType, string name, IRegistration registration)
         {
-            if (instance == null)
-                throw new ArgumentNullException("instance");
-            var registrationKey = new RegistrationKey(interfaceType, name);
-            AssertNotResolved(registrationKey);
+            var key = new RegistrationKey(interfaceType, name);
+            if (resolvedKeys.Contains(key))
+            {
+                throw new ObjectContainerException("An object has been resolved for this interface already.", null);
+            }
 
-            ClearRegistrations(registrationKey);
-            AddRegistration(registrationKey, new InstanceRegistration(instance));
-            objectPool[new RegistrationKey(instance.GetType(), name)] = GetPoolableInstance(instance, dispose);
-        }
-
-        private static object GetPoolableInstance(object instance, bool dispose)
-        {
-            return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
+            registrations[key] = registration;
+            AddNamedDictionaryRegistration(key);
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class
         {
             RegisterInstanceAs(instance, typeof(TInterface), name, dispose);
+        }
+
+        public void RegisterInstanceAs(object instance, Type interfaceType, string name = null, bool dispose = false)
+        {
+            if (instance == null)
+                throw new ArgumentNullException(nameof(instance));
+
+            AddRegistration(interfaceType, name, new InstanceRegistration(instance));
+
+            objectPool[new RegistrationKey(instance.GetType(), name)] = GetPoolableInstance(instance, dispose);
+        }
+
+        private static object GetPoolableInstance(object instance, bool dispose)
+        {
+            return !dispose && instance is IDisposable ? new NonDisposableWrapper(instance) : instance;
         }
 
         public IStrategyRegistration RegisterFactoryAs<TInterface>(Func<TInterface> factoryDelegate, string name = null)
@@ -730,16 +730,11 @@ namespace BoDi
 
         public IStrategyRegistration RegisterFactoryAs(Delegate factoryDelegate, Type interfaceType, string name = null)
         {
-            if (factoryDelegate == null) throw new ArgumentNullException("factoryDelegate");
-            if (interfaceType == null) throw new ArgumentNullException("interfaceType");
+            if (factoryDelegate == null) throw new ArgumentNullException(nameof(factoryDelegate));
+            if (interfaceType == null) throw new ArgumentNullException(nameof(interfaceType));
 
-            var registrationKey = new RegistrationKey(interfaceType, name);
-            AssertNotResolved(registrationKey);
-
-            ClearRegistrations(registrationKey);
             var factoryRegistration = new FactoryRegistration(factoryDelegate);
-            AddRegistration(registrationKey, factoryRegistration);
-
+            AddRegistration(interfaceType, name, factoryRegistration);
             return factoryRegistration;
         }
 
@@ -750,23 +745,9 @@ namespace BoDi
 
         public bool IsRegistered<T>(string name)
         {
-            Type typeToResolve = typeof(T);
-
-            var keyToResolve = new RegistrationKey(typeToResolve, name);
+            var keyToResolve = new RegistrationKey(typeof(T), name);
 
             return registrations.ContainsKey(keyToResolve);
-        }
-
-        // ReSharper disable once UnusedParameter.Local
-        private void AssertNotResolved(RegistrationKey interfaceType)
-        {
-            if (resolvedKeys.Contains(interfaceType))
-                throw new ObjectContainerException("An object has been resolved for this interface already.", null);
-        }
-
-        private void ClearRegistrations(RegistrationKey registrationKey)
-        {
-            registrations.TryRemove(registrationKey, out IRegistration result);
         }
 
 #if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
@@ -863,7 +844,7 @@ namespace BoDi
             // if there was no named registration, we still return an empty dictionary
             if (IsDefaultNamedInstanceDictionaryKey(keyToResolve))
             {
-                return new KeyValuePair<ObjectContainer, IRegistration>(this, new NamedInstanceDictionaryRegistration());
+                return new KeyValuePair<ObjectContainer, IRegistration>(this, NamedInstanceDictionaryRegistration.Instance);
             }
 
             return null;
