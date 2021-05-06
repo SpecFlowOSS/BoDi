@@ -114,6 +114,17 @@ namespace BoDi.Tests
         }
 
         [Test]
+        public void ShouldNotRegisterInvalidInterfaceType()
+        {
+            // given
+            var container = new ObjectContainer();
+
+            // then
+            Assert.Catch<ObjectContainerException>(() => container.RegisterTypeAs<IInterface1, IInterface1>());
+            Assert.Catch<ObjectContainerException>(() => container.RegisterTypeAs<IInterface1>(typeof(IInterface1)));
+        }
+
+        [Test]
         public void ShouldAlwaysCreateInstanceOnPerRequestStrategy()
         {
             // given
