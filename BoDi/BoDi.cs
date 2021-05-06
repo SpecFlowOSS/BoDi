@@ -64,6 +64,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -376,10 +377,6 @@ namespace BoDi
 
                 var result = ExecuteWithLock(syncRoot, () => container.GetPooledObject(pooledObjectKey), () =>
                 {
-                    if (typeToConstruct.IsInterface)
-                        throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve,
-                            resolutionPath.ToTypeList());
-
                     var obj = container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
                     container.objectPool.Add(pooledObjectKey, obj);
                     return obj;
@@ -392,10 +389,7 @@ namespace BoDi
 
             protected override object ResolvePerDependency(ObjectContainer container, RegistrationKey keyToResolve, ResolutionList resolutionPath)
             {
-                var typeToConstruct = GetTypeToConstruct(keyToResolve);
-                if (typeToConstruct.IsInterface)
-                    throw new ObjectContainerException("Interface cannot be resolved: " + keyToResolve, resolutionPath.ToTypeList());
-                return container.CreateObject(typeToConstruct, resolutionPath, keyToResolve);
+                return container.CreateObject(GetTypeToConstruct(keyToResolve), resolutionPath, keyToResolve);
             }
 
             private Type GetTypeToConstruct(RegistrationKey keyToResolve)
@@ -663,11 +657,29 @@ namespace BoDi
 
         private IRegistration EnsureImplicitRegistration(RegistrationKey key)
         {
-           var registration =  registrations.GetOrAdd(key, (registrationKey =>  new TypeRegistration(registrationKey.Type)));
+            var registration = registrations.GetOrAdd(key, registrationKey =>
+                {
+                    AssertType(registrationKey.Type);
+                    return new TypeRegistration(registrationKey.Type);
+                });
 
            AddNamedDictionaryRegistration(key);
 
            return registration;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void AssertType(Type type)
+        {
+            if (type == typeof(string) || type.IsInterface || type.IsValueType)
+            {
+                ThrowInvalidTypeException(type);
+            }
+        }
+
+        private static void ThrowInvalidTypeException(Type type)
+        {
+            throw new ObjectContainerException("Interfaces, strings or structs cannot be resolved: " + type.FullName, null);
         }
 
         private void AddNamedDictionaryRegistration(RegistrationKey key)
@@ -681,6 +693,10 @@ namespace BoDi
 
         private IStrategyRegistration RegisterTypeAs(Type implementationType, Type interfaceType, string name)
         {
+            if (implementationType.IsInterface)
+            {
+                ThrowInvalidTypeException(implementationType);
+            }
             var registrationKey = new RegistrationKey(interfaceType, name);
             AssertNotResolved(registrationKey);
 
@@ -909,9 +925,6 @@ namespace BoDi
 
         private object ResolveObject(RegistrationKey keyToResolve, ResolutionList resolutionPath)
         {
-            if (keyToResolve.Type.IsPrimitive || keyToResolve.Type == typeof(string) || keyToResolve.Type.IsValueType)
-                throw new ObjectContainerException("Primitive types or structs cannot be resolved: " + keyToResolve.Type.FullName, resolutionPath.ToTypeList());
-
             var registrationResult = GetRegistrationResult(keyToResolve);
 
             var registrationToUse = registrationResult ??
