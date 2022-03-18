@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace BoDi.Tests
 {
@@ -197,6 +198,42 @@ namespace BoDi.Tests
             WasDisposed = true;
         }
     }
+
+#if ASYNC_DISPOSE
+    public class AsyncDisposableClass1 : IDisposableClass, IAsyncDisposable
+    {
+        public bool WasDisposed { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            WasDisposed = true;
+            return new ValueTask(Task.CompletedTask);
+        }
+    }
+
+    public interface IDisposableOptionallyAsyncClass : IDisposableClass
+    {
+        bool DisposalWasAsync { get; }
+    }
+
+    public class SyncAndAsyncDisposableClass1 : IDisposableOptionallyAsyncClass, IDisposable, IAsyncDisposable
+    {
+        public bool WasDisposed { get; private set; }
+        public bool DisposalWasAsync { get; private set; }
+
+        public void Dispose()
+        {
+            WasDisposed = true;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            WasDisposed = true;
+            DisposalWasAsync = true;
+            return new ValueTask(Task.CompletedTask);
+        }
+    }
+#endif
 
     public enum MyEnumKey
     {

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>BoDi.Tests</RootNamespace>
     <AssemblyName>BoDi.Tests</AssemblyName>
-    <TargetFrameworks>net45;netcoreapp2.0</TargetFrameworks>
+    <TargetFrameworks>net45;netcoreapp2.0;netcoreapp3.1</TargetFrameworks>
 
     <Copyright>"Copyright (C) 2010-2018, Gaspar Nagy (http://gasparnagy.com)"</Copyright>
     <Company>gasparnagy.com</Company>
