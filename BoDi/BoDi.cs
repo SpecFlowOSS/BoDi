@@ -574,11 +574,13 @@ namespace BoDi
 
         #endregion
 
-        private bool isDisposed = false;
+        private const int DefaultResolvedKeysSize = 20;
+        private const int DefaultObjectPoolSize = 10;
         private readonly ObjectContainer baseContainer;
         private readonly ConcurrentDictionary<RegistrationKey, IRegistration> registrations = new ConcurrentDictionary<RegistrationKey, IRegistration>();
-        private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>();
-        private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>();
+        private readonly List<RegistrationKey> resolvedKeys = new List<RegistrationKey>(DefaultResolvedKeysSize);
+        private readonly Dictionary<RegistrationKey, object> objectPool = new Dictionary<RegistrationKey, object>(DefaultObjectPoolSize);
+        private bool isDisposed;
 
         public static bool DisableThreadSafeResolution { get; set; }
 
@@ -591,15 +593,15 @@ namespace BoDi
         public event Action<object> ObjectCreated;
         public IObjectContainer BaseContainer => baseContainer;
 
-        public static TimeSpan ConcurrentObjectResolutionTimeout { get; set; } = TimeSpan.FromSeconds(1); 
-            
+        public static TimeSpan ConcurrentObjectResolutionTimeout { get; set; } = TimeSpan.FromSeconds(1);
+
         public ObjectContainer(IObjectContainer baseContainer = null)
         {
             if (baseContainer != null && !(baseContainer is ObjectContainer))
-                throw new ArgumentException("Base container must be an ObjectContainer", "baseContainer");
+                throw new ArgumentException("Base container must be an ObjectContainer", nameof(baseContainer));
 
             this.baseContainer = (ObjectContainer)baseContainer;
-            RegisterInstanceAs<IObjectContainer>(this);
+            RegisterInstanceAs(this,  typeof(IObjectContainer));
         }
 
         #region Registration
@@ -831,7 +833,8 @@ namespace BoDi
 
         private object Resolve(Type typeToResolve, ResolutionList resolutionPath, string name)
         {
-            AssertNotDisposed();
+            if (isDisposed)
+                throw new ObjectContainerException("Object container disposed", null);
 
             var keyToResolve = new RegistrationKey(typeToResolve, name);
             object resolvedObject = ResolveObject(keyToResolve, resolutionPath);
@@ -998,18 +1001,17 @@ namespace BoDi
                     .Select(r => string.Format("{0} -> {1}", r.Key, (r.Key.Type == typeof(IObjectContainer) && r.Key.Name == null) ? "<self>" : r.Value.ToString())));
         }
 
-        private void AssertNotDisposed()
-        {
-            if (isDisposed)
-                throw new ObjectContainerException("Object container disposed", null);
-        }
-
         public void Dispose()
         {
             isDisposed = true;
 
-            foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
-                obj.Dispose();
+            foreach (var pair in objectPool)
+            {
+                if (pair.Value is IDisposable disposable && !ReferenceEquals(disposable, this))
+                {
+                    disposable.Dispose();
+                }
+            }
 
             objectPool.Clear();
             registrations.Clear();
