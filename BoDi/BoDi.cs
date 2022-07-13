@@ -14,6 +14,8 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Change history
+ * V1.6
+ *   - IAsyncDispose support (#49 by idg10)
  * V1.5
  *   - Thread-safe object resolution
  *   - New 'instance per dependency' strategy added for type and factory registrations (by MKMZ)
@@ -66,6 +68,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace BoDi
 {
@@ -226,6 +229,9 @@ namespace BoDi
     }
 
     public class ObjectContainer : IObjectContainer
+#if ASYNC_DISPOSE
+        , IAsyncDisposable
+#endif
     {
         private const string REGISTERED_NAME_PARAMETER_NAME = "registeredName";
         private const string DISABLE_THREAD_SAFE_RESOLUTION = "DISABLE_THREAD_SAFE_RESOLUTION";
@@ -705,7 +711,12 @@ namespace BoDi
 
         private static object GetPoolableInstance(object instance, bool dispose)
         {
-            return (instance is IDisposable) && !dispose ? new NonDisposableWrapper(instance) : instance;
+            bool implementsDisposable =
+#if ASYNC_DISPOSE
+                (instance is IAsyncDisposable) ||
+#endif
+                (instance is IDisposable);
+            return implementsDisposable && !dispose ? new NonDisposableWrapper(instance) : instance;
         }
 
         public void RegisterInstanceAs<TInterface>(TInterface instance, string name = null, bool dispose = false) where TInterface : class
@@ -1008,16 +1019,59 @@ namespace BoDi
         {
             isDisposed = true;
 
+#if !ASYNC_DISPOSE
             foreach (var obj in objectPool.Values.OfType<IDisposable>().Where(o => !ReferenceEquals(o, this)))
                 obj.Dispose();
+#else
+            List<Task> tasks = null;
+            foreach (var obj in objectPool.Values.Where(o => !ReferenceEquals(o, this)))
+            {
+                if (obj is IDisposable d)
+                {
+                    d.Dispose();
+                }
+                else if (obj is IAsyncDisposable ad)
+                {
+                    if (tasks == null) { tasks = new List<Task>(); }
+                    tasks.Add(ad.DisposeAsync().AsTask());
+                }
+            }
+            if (tasks != null)
+            {
+                Task.WaitAll(tasks.ToArray());
+            }
+#endif
 
             objectPool.Clear();
             registrations.Clear();
             resolvedKeys.Clear();
         }
+
+#if ASYNC_DISPOSE
+        public async ValueTask DisposeAsync()
+        {
+            isDisposed = true;
+
+            foreach (var obj in objectPool.Values.Where(o => !ReferenceEquals(o, this)))
+            {
+                if (obj is IAsyncDisposable ad)
+                {
+                    await ad.DisposeAsync().ConfigureAwait(false);
+                }
+                else if (obj is IDisposable d)
+                {
+                    d.Dispose();
+                }
+            }
+
+            objectPool.Clear();
+            registrations.Clear();
+            resolvedKeys.Clear();
+        }
+#endif
     }
 
-    #region Configuration handling
+#region Configuration handling
 #if !BODI_LIMITEDRUNTIME && !BODI_DISABLECONFIGFILESUPPORT
 
     public class BoDiConfigurationSection : ConfigurationSection
@@ -1083,5 +1137,5 @@ namespace BoDi
     }
 
 #endif
-    #endregion
+#endregion
 }
