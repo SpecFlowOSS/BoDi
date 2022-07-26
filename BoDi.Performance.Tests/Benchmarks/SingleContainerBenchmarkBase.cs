@@ -6,6 +6,7 @@ namespace BODi.Performance.Tests.Benchmarks
 {
     [HtmlExporter]
     [MarkdownExporterAttribute.GitHub]
+    [MemoryDiagnoser]
     [MinColumn, MaxColumn, MeanColumn, MedianColumn, RankColumn]
     [Orderer(SummaryOrderPolicy.FastestToSlowest, MethodOrderPolicy.Declared)]
     public abstract class SingleContainerBenchmarkBase
@@ -24,6 +25,9 @@ namespace BODi.Performance.Tests.Benchmarks
             Container14.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
             Container14.RegisterTypeAs<AllRegistered3, IAllRegisteredFromType>();
             Container14.RegisterTypeAs<AllRegistered4, IAllRegisteredFromType>();
+            Container14.RegisterTypeAs<InnerClass, InnerClass>();
+            Container14.RegisterTypeAs<MiddleClass, MiddleClass>();
+            Container14.RegisterTypeAs<OuterClass, OuterClass>();
             Container14.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered1());
             Container14.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered2());
             Container14.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
@@ -37,6 +41,9 @@ namespace BODi.Performance.Tests.Benchmarks
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<AllRegistered3, IAllRegisteredFromType>();
             Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<AllRegistered4, IAllRegisteredFromType>();
+            Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<InnerClass, InnerClass>();
+            Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<MiddleClass, MiddleClass>();
+            Container1Concurrent_Dictionary_And_Lazy.RegisterTypeAs<OuterClass, OuterClass>();
             Container1Concurrent_Dictionary_And_Lazy.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered1());
             Container1Concurrent_Dictionary_And_Lazy.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered2());
             Container1Concurrent_Dictionary_And_Lazy.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
@@ -49,6 +56,9 @@ namespace BODi.Performance.Tests.Benchmarks
             ContainerCurrent.RegisterTypeAs<AllRegistered2, IAllRegisteredFromType>();
             ContainerCurrent.RegisterTypeAs<AllRegistered3, IAllRegisteredFromType>();
             ContainerCurrent.RegisterTypeAs<AllRegistered4, IAllRegisteredFromType>();
+            ContainerCurrent.RegisterTypeAs<InnerClass, InnerClass>();
+            ContainerCurrent.RegisterTypeAs<MiddleClass, MiddleClass>();
+            ContainerCurrent.RegisterTypeAs<OuterClass, OuterClass>();
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered1());
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered2());
             ContainerCurrent.RegisterFactoryAs<IAllRegisteredFromFactory>(_ => new AllRegistered3());
@@ -68,5 +78,16 @@ namespace BODi.Performance.Tests.Benchmarks
         private class AllRegistered2 : IAllRegisteredFromType, IAllRegisteredFromFactory {}
         private class AllRegistered3 : IAllRegisteredFromType, IAllRegisteredFromFactory {}
         private class AllRegistered4 : IAllRegisteredFromType, IAllRegisteredFromFactory {}
+
+        protected internal class InnerClass { }
+        protected internal class MiddleClass {
+            public MiddleClass(InnerClass innerClass) { }
+        }
+        protected internal class MiddleClass2 {
+            public MiddleClass2(TypeRegistered innerClass) { }
+        }
+        protected internal class OuterClass {
+            public OuterClass(MiddleClass first, MiddleClass2 second) { }
+        }
     }
 }
