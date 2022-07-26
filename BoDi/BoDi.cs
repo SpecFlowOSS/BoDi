@@ -291,27 +291,17 @@ namespace BoDi
             }
         }
 
-        private struct RegistrationKey
+        private readonly struct RegistrationKey : IEquatable<RegistrationKey>
         {
             public readonly Type Type;
+            private readonly Type typeGroup;
             public readonly string Name;
 
             public RegistrationKey(Type type, string name)
             {
-                if (type == null) throw new ArgumentNullException("type");
-
-                Type = type;
+                Type = type ?? throw new ArgumentNullException(nameof(type));
+                typeGroup = (type.IsGenericType && !type.IsGenericTypeDefinition) ? type.GetGenericTypeDefinition() : type;
                 Name = name;
-            }
-
-            private Type TypeGroup
-            {
-                get
-                {
-                    if (Type.IsGenericType && !Type.IsGenericTypeDefinition)
-                        return Type.GetGenericTypeDefinition();
-                    return Type;
-                }
             }
 
             public override string ToString()
@@ -323,10 +313,10 @@ namespace BoDi
                 return string.Format("{0}('{1}')", Type.FullName, Name);
             }
 
-            bool Equals(RegistrationKey other)
+            public bool Equals(RegistrationKey other)
             {
-                var isInvertable = other.TypeGroup == Type || other.Type == TypeGroup || other.Type == Type;
-                return isInvertable && String.Equals(other.Name, Name, StringComparison.CurrentCultureIgnoreCase);
+                var isInvertable = other.Type == Type || other.typeGroup == Type || other.Type == typeGroup;
+                return isInvertable && other.Name == Name;
             }
 
             public override bool Equals(object obj)
@@ -338,10 +328,7 @@ namespace BoDi
 
             public override int GetHashCode()
             {
-                unchecked
-                {
-                    return TypeGroup.GetHashCode();
-                }
+                return typeGroup.GetHashCode();
             }
         }
 
