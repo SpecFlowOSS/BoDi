@@ -304,7 +304,7 @@ namespace BoDi
                 Name = name;
             }
 
-            private Type TypeGroup
+            internal Type TypeGroup
             {
                 get
                 {
@@ -843,47 +843,49 @@ namespace BoDi
             return resolvedObject;
         }
 
-        private KeyValuePair<ObjectContainer, IRegistration>? GetRegistrationResult(RegistrationKey keyToResolve)
+        private KeyValuePair<ObjectContainer, IRegistration> GetRegistrationResult(RegistrationKey keyToResolve)
         {
-            IRegistration registration;
-            if (registrations.TryGetValue(keyToResolve, out registration))
+            if (registrations.TryGetValue(keyToResolve, out var registration))
             {
                 return new KeyValuePair<ObjectContainer, IRegistration>(this, registration);
             }
 
             if (baseContainer != null)
+            {
                 return baseContainer.GetRegistrationResult(keyToResolve);
-
-            if (IsSpecialNamedInstanceDictionaryKey(keyToResolve))
-            {
-                var targetType = keyToResolve.Type.GetGenericArguments()[1];
-                return GetRegistrationResult(CreateNamedInstanceDictionaryKey(targetType));
             }
 
-            // if there was no named registration, we still return an empty dictionary
-            if (IsDefaultNamedInstanceDictionaryKey(keyToResolve))
+            if (IsNamedInstanceDictionaryKey(keyToResolve))
             {
-                return new KeyValuePair<ObjectContainer, IRegistration>(this, new NamedInstanceDictionaryRegistration());
+                var genericArguments = keyToResolve.Type.GetGenericArguments();
+                if (IsSpecialNamed(genericArguments[0]))
+                {
+                    return GetRegistrationResult(CreateNamedInstanceDictionaryKey(genericArguments[1]));
+                }
+
+                // if there was no named registration, we still return an empty dictionary
+                if (IsDefaultNamed(genericArguments[0]))
+                {
+                    return new KeyValuePair<ObjectContainer, IRegistration>(this, new NamedInstanceDictionaryRegistration());
+                }
             }
 
-            return null;
+            return new KeyValuePair<ObjectContainer, IRegistration>(this, EnsureImplicitRegistration(keyToResolve));
         }
 
-        private bool IsDefaultNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        private static bool IsSpecialNamed(Type genericType)
         {
-            return IsNamedInstanceDictionaryKey(keyToResolve) &&
-                   keyToResolve.Type.GetGenericArguments()[0] == typeof(string);
+            return genericType.IsEnum;
         }
 
-        private bool IsSpecialNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        private static bool IsDefaultNamed(Type genericType)
         {
-            return IsNamedInstanceDictionaryKey(keyToResolve) &&
-                   keyToResolve.Type.GetGenericArguments()[0].IsEnum;
+            return genericType == typeof(string);
         }
 
-        private bool IsNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
+        private static bool IsNamedInstanceDictionaryKey(RegistrationKey keyToResolve)
         {
-            return keyToResolve.Name == null && keyToResolve.Type.IsGenericType && keyToResolve.Type.GetGenericTypeDefinition() == typeof(IDictionary<,>);
+            return keyToResolve.Name is null && keyToResolve.TypeGroup == typeof(IDictionary<,>);
         }
 
         private object GetPooledObject(RegistrationKey pooledObjectKey)
@@ -914,13 +916,9 @@ namespace BoDi
 
             var registrationResult = GetRegistrationResult(keyToResolve);
 
-            var registrationToUse = registrationResult ??
-                                    new KeyValuePair<ObjectContainer, IRegistration>(this, EnsureImplicitRegistration(keyToResolve));
+            var resolutionPathForResolve = registrationResult.Key == this ? resolutionPath : new ResolutionList();
+            var result = registrationResult.Value.Resolve(registrationResult.Key, keyToResolve, resolutionPathForResolve);
 
-            var resolutionPathForResolve = registrationToUse.Key == this ?
-                resolutionPath : new ResolutionList();
-            var result = registrationToUse.Value.Resolve(registrationToUse.Key, keyToResolve, resolutionPathForResolve);
-           
             return result;
         }
 
